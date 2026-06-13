@@ -1,0 +1,5 @@
+# Development & test dependencies (shared across modules).
+-r ingestion/requirements.txt
+
+pytest>=8,<9
+ruff>=0.4,<1.0

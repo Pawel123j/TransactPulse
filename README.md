@@ -211,7 +211,7 @@ arrives with the corresponding stages.
 The project is built in eight checkpointed stages:
 
 - [x] **Stage 1 — Repository foundation & architecture** — structure, README, initial ADRs.
-- [ ] **Stage 2 — Synthetic transaction generator** — realistic producer → Kafka.
+- [x] **Stage 2 — Synthetic transaction generator** — realistic producer → Kafka ([ingestion/](ingestion/README.md)).
 - [ ] **Stage 3 — Infrastructure** — Kafka (KRaft) + MinIO in Docker.
 - [ ] **Stage 4 — Bronze layer** — Spark Structured Streaming → Delta on MinIO.
 - [ ] **Stage 5 — Silver layer** — cleansing, dedup, data-quality gates, quarantine.
@@ -231,6 +231,7 @@ Significant technical decisions are captured as [ADRs](docs/adr/) in the
 | [0000](docs/adr/0000-template.md) | ADR template (MADR) |
 | [0001](docs/adr/0001-architektura-medalionowa.md) | Medallion lakehouse architecture |
 | [0002](docs/adr/0002-wybor-stacku.md) | Technology stack selection |
+| [0003](docs/adr/0003-format-serializacji.md) | Wire serialization format (JSON now, Avro-ready) |
 
 ---
 
