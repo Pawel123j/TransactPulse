@@ -225,7 +225,7 @@ The project is built in eight checkpointed stages:
 - [x] **Stage 1 — Repository foundation & architecture** — structure, README, initial ADRs.
 - [x] **Stage 2 — Synthetic transaction generator** — realistic producer → Kafka ([ingestion/](ingestion/README.md)).
 - [x] **Stage 3 — Infrastructure** — Kafka (KRaft) + MinIO in Docker ([infra/](infra/README.md)).
-- [ ] **Stage 4 — Bronze layer** — Spark Structured Streaming → Delta on MinIO.
+- [x] **Stage 4 — Bronze layer** — Spark Structured Streaming → Delta on MinIO ([streaming/](streaming/README.md)).
 - [ ] **Stage 5 — Silver layer** — cleansing, dedup, data-quality gates, quarantine.
 - [ ] **Stage 6 — Gold layer & ML** — aggregates + fraud scoring + drift metrics.
 - [ ] **Stage 7 — Orchestration & query** — Airflow DAG + DuckDB/Trino.
@@ -244,6 +244,7 @@ Significant technical decisions are captured as [ADRs](docs/adr/) in the
 | [0001](docs/adr/0001-architektura-medalionowa.md) | Medallion lakehouse architecture |
 | [0002](docs/adr/0002-wybor-stacku.md) | Technology stack selection |
 | [0003](docs/adr/0003-format-serializacji.md) | Wire serialization format (JSON now, Avro-ready) |
+| [0004](docs/adr/0004-strategia-checkpoint-i-exactly-once.md) | Checkpointing & exactly-once for bronze ingest |
 
 ---
 
