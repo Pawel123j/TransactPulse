@@ -201,8 +201,20 @@ docker compose -f infra/docker-compose.yml up -d
 docker compose up
 ```
 
-Detailed quickstart with verification steps (Kafka UI, MinIO console, dashboard)
-arrives with the corresponding stages.
+### Verify the infrastructure (Stage 3)
+
+- **Kafka UI** → http://localhost:8080 — topic `transactions.raw` (3 partitions).
+- **MinIO console** → http://localhost:9001 (`minioadmin` / `minioadmin123`) —
+  bucket `lakehouse`.
+- **End-to-end smoke test** (generator → Kafka → CLI consumer):
+
+  ```bash
+  pip install -r ingestion/requirements.txt
+  ./infra/smoke-test.sh 20
+  ```
+
+See [`infra/README.md`](infra/README.md) for details, the networking model, and
+teardown.
 
 ---
 
@@ -212,7 +224,7 @@ The project is built in eight checkpointed stages:
 
 - [x] **Stage 1 — Repository foundation & architecture** — structure, README, initial ADRs.
 - [x] **Stage 2 — Synthetic transaction generator** — realistic producer → Kafka ([ingestion/](ingestion/README.md)).
-- [ ] **Stage 3 — Infrastructure** — Kafka (KRaft) + MinIO in Docker.
+- [x] **Stage 3 — Infrastructure** — Kafka (KRaft) + MinIO in Docker ([infra/](infra/README.md)).
 - [ ] **Stage 4 — Bronze layer** — Spark Structured Streaming → Delta on MinIO.
 - [ ] **Stage 5 — Silver layer** — cleansing, dedup, data-quality gates, quarantine.
 - [ ] **Stage 6 — Gold layer & ML** — aggregates + fraud scoring + drift metrics.
