@@ -10,6 +10,7 @@ Run via spark-submit (jars supplied with ``--packages`` — see the Dockerfile).
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 from datetime import UTC, datetime
@@ -124,21 +125,44 @@ def write_drift_report(result: dict[str, Any], docs_dir: str) -> None:
     (out / "drift_report.md").write_text("\n".join(lines), encoding="utf-8")
 
 
-def main() -> None:
+def run_step(step: str, config: GoldConfig, spark: SparkSession) -> None:
+    """Run a single gold step. Each step reads from Delta, so steps are independent
+    and individually restartable (used as discrete Airflow tasks)."""
+    if step in ("aggregates", "all"):
+        silver = spark.read.format("delta").load(config.silver_path)
+        write_aggregates(silver, config)
+
+    scored = None
+    if step in ("scoring", "all"):
+        silver = spark.read.format("delta").load(config.silver_path)
+        scored = score_and_write(silver, config)
+
+    if step in ("drift", "all"):
+        if scored is None:
+            scored = spark.read.format("delta").load(config.gold_path("scored_transactions"))
+        drift = compute_drift(scored, config)
+        write_drift_report(drift, config.docs_dir)
+        logger.info("drift=%s", json.dumps(drift["metrics"]))
+
+
+def main(argv: list[str] | None = None) -> int:
     """Entry point for the gold batch job."""
+    parser = argparse.ArgumentParser(description="Gold aggregates + ML scoring + drift.")
+    parser.add_argument(
+        "--step",
+        choices=("aggregates", "scoring", "drift", "all"),
+        default="all",
+        help="Which gold step to run (the Airflow DAG runs them separately).",
+    )
+    args = parser.parse_args(argv)
+
     config = GoldConfig.from_env()
-    logger.info("gold job from %s", config.silver_path)
+    logger.info("gold job step=%s from %s", args.step, config.silver_path)
     spark: SparkSession = build_spark_session(config)
-
-    silver = spark.read.format("delta").load(config.silver_path)
-
-    write_aggregates(silver, config)
-    scored = score_and_write(silver, config)
-
-    drift = compute_drift(scored, config)
-    write_drift_report(drift, config.docs_dir)
-    logger.info("gold done; drift=%s", json.dumps(drift["metrics"]))
+    run_step(args.step, config, spark)
+    logger.info("gold step %s done", args.step)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -5,14 +5,16 @@ FROM apache/spark:3.5.1
 USER root
 WORKDIR /app
 
-# Python deps for ML fraud scoring (pandas_udf needs pandas + pyarrow; sklearn to
-# load the model artifact). Kept lean — Great Expectations is optional (the silver
-# report falls back to native metrics if it is absent).
+# Python deps: ML scoring (pandas_udf needs pandas + pyarrow; sklearn to load the
+# artifact) and Faker for the model-training job. Great Expectations is optional
+# (the silver report falls back to native metrics if it is absent).
 RUN pip install --no-cache-dir \
-      "scikit-learn>=1.3,<2" "pandas>=2.0,<3" "numpy>=1.24" "pyarrow>=14"
+      "scikit-learn>=1.3,<2" "pandas>=2.0,<3" "numpy>=1.24" "pyarrow>=14" \
+      "faker>=24,<26"
 
-# Application code: bronze streaming job + lakehouse batch jobs (silver/gold).
-# Neither imports the ingestion/Faker stack, so it is intentionally excluded.
+# Application code: bronze streaming + lakehouse batch jobs (silver/gold) +
+# ingestion (used only by the model-training job, not by silver/gold at runtime).
+COPY ingestion/ ./ingestion/
 COPY streaming/ ./streaming/
 COPY lakehouse/ ./lakehouse/
 

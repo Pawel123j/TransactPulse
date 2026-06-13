@@ -228,7 +228,7 @@ The project is built in eight checkpointed stages:
 - [x] **Stage 4 — Bronze layer** — Spark Structured Streaming → Delta on MinIO ([streaming/](streaming/README.md)).
 - [x] **Stage 5 — Silver layer** — cleansing, dedup, data-quality gates, quarantine ([lakehouse/](lakehouse/README.md)).
 - [x] **Stage 6 — Gold layer & ML** — aggregates + fraud scoring + drift metrics ([lakehouse/](lakehouse/README.md)).
-- [ ] **Stage 7 — Orchestration & query** — Airflow DAG + DuckDB/Trino.
+- [x] **Stage 7 — Orchestration & query** — Airflow DAG ([orchestration/](orchestration/README.md)) + DuckDB ([analytics/](analytics/README.md)).
 - [ ] **Stage 8 — Dashboard, tests, CI** — Streamlit, full compose, GitHub Actions, `v1.0.0`.
 
 ---
@@ -247,6 +247,8 @@ Significant technical decisions are captured as [ADRs](docs/adr/) in the
 | [0004](docs/adr/0004-strategia-checkpoint-i-exactly-once.md) | Checkpointing & exactly-once for bronze ingest |
 | [0005](docs/adr/0005-data-quality-i-kwarantanna.md) | Data quality gates & quarantine for silver |
 | [0006](docs/adr/0006-batch-scoring-ml-jako-udf.md) | Batch ML fraud scoring as a Spark UDF |
+| [0007](docs/adr/0007-airflow-vs-prefect.md) | Orchestration with Apache Airflow |
+| [0008](docs/adr/0008-duckdb-vs-trino.md) | DuckDB query engine for gold analytics |
 
 ---
 
