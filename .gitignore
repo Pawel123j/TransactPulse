@@ -44,6 +44,13 @@ data/
 models/*.pkl
 mlruns/
 
+# ---- Per-run data-quality outputs (the example + suite ARE committed) ----
+docs/data_quality/silver_quality_report.md
+docs/data_quality/silver_quality_report.json
+docs/data_quality/great_expectations_result.json
+gx/
+great_expectations/uncommitted/
+
 # ---- Docker / infra local state ----
 .env
 *.local.env

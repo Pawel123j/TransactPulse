@@ -5,8 +5,10 @@ FROM apache/spark:3.5.1
 USER root
 WORKDIR /app
 
-# Application code (the streaming package only; bronze has no other deps).
+# Application code: bronze streaming job + lakehouse batch jobs (silver/gold).
+# Neither imports the ingestion/Faker stack, so it is intentionally excluded.
 COPY streaming/ ./streaming/
+COPY lakehouse/ ./lakehouse/
 
 # Writable Ivy cache for --packages resolution; owned by the spark user (uid 185).
 RUN mkdir -p /tmp/.ivy2 && chown -R spark:spark /app /tmp/.ivy2

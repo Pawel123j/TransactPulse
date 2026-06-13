@@ -1,0 +1,6 @@
+# Runtime/dev dependencies for the lakehouse (silver/gold) batch jobs.
+# PySpark ships with the apache/spark image; these pins are for host/CI runs.
+pyspark>=3.5,<3.6
+delta-spark>=3.2,<3.3
+great-expectations>=0.18,<1.0
+pandas>=2.0,<3.0
