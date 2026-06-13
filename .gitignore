@@ -51,6 +51,10 @@ docs/data_quality/great_expectations_result.json
 gx/
 great_expectations/uncommitted/
 
+# ---- Per-run drift outputs (the example IS committed) ----
+docs/drift/drift_report.md
+docs/drift/drift_report.json
+
 # ---- Docker / infra local state ----
 .env
 *.local.env

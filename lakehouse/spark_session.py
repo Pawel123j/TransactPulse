@@ -7,10 +7,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:  # pragma: no cover
     from pyspark.sql import SparkSession
 
-from lakehouse.config import SilverConfig
+from lakehouse.config import GoldConfig, SilverConfig
 
 
-def build_spark_session(config: SilverConfig) -> SparkSession:
+def build_spark_session(config: SilverConfig | GoldConfig) -> SparkSession:
     """Create a SparkSession configured for Delta and S3A access to MinIO."""
     from pyspark.sql import SparkSession
 

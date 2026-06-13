@@ -5,6 +5,12 @@ FROM apache/spark:3.5.1
 USER root
 WORKDIR /app
 
+# Python deps for ML fraud scoring (pandas_udf needs pandas + pyarrow; sklearn to
+# load the model artifact). Kept lean — Great Expectations is optional (the silver
+# report falls back to native metrics if it is absent).
+RUN pip install --no-cache-dir \
+      "scikit-learn>=1.3,<2" "pandas>=2.0,<3" "numpy>=1.24" "pyarrow>=14"
+
 # Application code: bronze streaming job + lakehouse batch jobs (silver/gold).
 # Neither imports the ingestion/Faker stack, so it is intentionally excluded.
 COPY streaming/ ./streaming/

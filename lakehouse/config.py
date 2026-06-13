@@ -68,3 +68,49 @@ class SilverConfig:
             docs_dir=_env("SILVER_DOCS_DIR", d.docs_dir),
             app_name=_env("SILVER_APP_NAME", d.app_name),
         )
+
+
+@dataclass(slots=True)
+class GoldConfig:
+    """Settings for the silver -> gold aggregates + ML scoring + drift job.
+
+    Attributes:
+        s3_endpoint / s3_access_key / s3_secret_key / bucket: MinIO connection.
+        model_path: Path to the pickled fraud model artifact.
+        fraud_threshold: Score threshold for the ``fraud_flag`` (overrides model).
+        docs_dir: Where the drift report is written.
+        app_name: Spark application name.
+    """
+
+    s3_endpoint: str = "http://localhost:9000"
+    s3_access_key: str = "minioadmin"
+    s3_secret_key: str = "minioadmin123"
+    bucket: str = "lakehouse"
+    model_path: str = "models/fraud_model.pkl"
+    fraud_threshold: float = 0.5
+    docs_dir: str = "docs/drift"
+    app_name: str = "transactpulse-gold"
+
+    @property
+    def silver_path(self) -> str:
+        return f"s3a://{self.bucket}/silver/transactions"
+
+    def gold_path(self, table: str) -> str:
+        """Delta path for a named gold table."""
+        return f"s3a://{self.bucket}/gold/{table}"
+
+    @classmethod
+    def from_env(cls) -> GoldConfig:
+        """Build the config from environment variables, falling back to defaults."""
+        d = cls()
+        threshold = os.getenv("GOLD_FRAUD_THRESHOLD")
+        return cls(
+            s3_endpoint=_env("S3_ENDPOINT", d.s3_endpoint),
+            s3_access_key=_env("S3_ACCESS_KEY", d.s3_access_key),
+            s3_secret_key=_env("S3_SECRET_KEY", d.s3_secret_key),
+            bucket=_env("LAKEHOUSE_BUCKET", d.bucket),
+            model_path=_env("GOLD_MODEL_PATH", d.model_path),
+            fraud_threshold=float(threshold) if threshold not in (None, "") else d.fraud_threshold,
+            docs_dir=_env("GOLD_DOCS_DIR", d.docs_dir),
+            app_name=_env("GOLD_APP_NAME", d.app_name),
+        )

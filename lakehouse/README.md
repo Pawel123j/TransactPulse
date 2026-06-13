@@ -65,8 +65,46 @@ spark-submit \
 
 > The silver job is wired into the Airflow `medallion_pipeline` DAG in Stage 7.
 
+## Gold layer & ML scoring (Stage 6)
+
+The gold job ([`gold_job.py`](gold_job.py)) reads silver and writes analytical
+Delta tables plus an ML-scored table, then computes drift.
+
+| Gold table                  | Grain                     | Contents                                            |
+| --------------------------- | ------------------------- | --------------------------------------------------- |
+| `daily_volume_by_country`   | day × country             | tx count, volume/avg PLN, fraud count & rate        |
+| `merchant_category_kpi`     | merchant category         | tx count, distinct accounts, volume, fraud rate     |
+| `account_velocity`          | account × day             | tx count, total/max PLN, distinct countries/devices |
+| `fraud_signals`             | transaction               | rule-based boolean signals + `signal_count`         |
+| `scored_transactions`       | transaction               | silver + `fraud_score` + `fraud_flag`               |
+
+### Fraud scoring (ADR 0006)
+
+- The model is a swappable artifact behind [`FraudModel`](ml/model.py); inference
+  runs as a vectorized Spark **`pandas_udf`** ([`ml/scoring.py`](ml/scoring.py)),
+  loading the model once per executor.
+- A baseline **scikit-learn** model is trained on synthetic data:
+
+  ```bash
+  python -m lakehouse.ml.train_model --samples 60000 --seed 42
+  # -> models/fraud_model.pkl (gitignored) + models/fraud_model.meta.json (committed)
+  ```
+
+- If the artifact is missing/unloadable, scoring **falls back** to a deterministic
+  heuristic model, so gold always produces `scored_transactions`.
+
+### Drift ([`drift.py`](drift.py))
+
+PSI and KS of the live `fraud_score` / `amount_pln` versus the model's training
+reference are written to `docs/drift/` — see the example
+[`drift_report.example.md`](../docs/drift/drift_report.example.md).
+
 ## Tests
 
 - `tests/test_dq_rules.py` — pure-Python rule logic (no Spark).
 - `tests/test_quality.py` — expectation suite + report rendering (no Spark).
-- `tests/test_silver_transform.py` — Spark transforms (skipped without PySpark; runs in CI).
+- `tests/test_features.py` — feature engineering (pure + pandas-vectorized).
+- `tests/test_drift.py` — PSI / KS metrics (pure Python).
+- `tests/test_model_scoring.py` — model wrapper + pandas scoring (no Spark).
+- `tests/test_silver_transform.py`, `tests/test_gold_aggregates.py` — Spark
+  transforms (skipped without PySpark; run in CI).
