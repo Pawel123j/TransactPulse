@@ -1,0 +1,11 @@
+# Development & test dependencies (shared across modules).
+-r ingestion/requirements.txt
+
+pytest>=8,<9
+ruff>=0.4,<1.0
+
+# Pure-Python ML/quality/analytics tests (Spark tests skip without pyspark).
+pandas>=2.0,<3.0
+numpy>=1.24
+scikit-learn>=1.3,<2
+duckdb>=0.10

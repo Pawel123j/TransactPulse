@@ -1,0 +1,77 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.installed.cfg
+*.egg
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.cache/
+
+# ---- Notebooks ----
+.ipynb_checkpoints/
+
+# ---- Spark / Delta / streaming ----
+spark-warehouse/
+metastore_db/
+derby.log
+checkpoints/
+**/_delta_log/.tmp/
+*.crc
+
+# ---- Data & artifacts (synthetic, but never committed) ----
+data/
+*.parquet
+*.avro
+models/*.pkl
+mlruns/
+
+# ---- Per-run data-quality outputs (the example + suite ARE committed) ----
+docs/data_quality/silver_quality_report.md
+docs/data_quality/silver_quality_report.json
+docs/data_quality/great_expectations_result.json
+gx/
+great_expectations/uncommitted/
+
+# ---- Per-run drift outputs (the example IS committed) ----
+docs/drift/drift_report.md
+docs/drift/drift_report.json
+
+# ---- Docker / infra local state ----
+.env
+*.local.env
+volumes/
+minio-data/
+kafka-data/
+
+# ---- Airflow ----
+logs/
+airflow.db
+airflow.cfg
+webserver_config.py
+
+# ---- IDE / OS ----
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db

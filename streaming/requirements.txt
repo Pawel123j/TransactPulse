@@ -1,0 +1,5 @@
+# Runtime/dev dependencies for the streaming (bronze) job.
+# In the Docker image PySpark ships with the apache/spark base; these pins are for
+# running or testing the job from the host.
+pyspark>=3.5,<3.6
+delta-spark>=3.2,<3.3

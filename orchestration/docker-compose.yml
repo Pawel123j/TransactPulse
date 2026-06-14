@@ -1,0 +1,113 @@
+# TransactPulse — Airflow orchestration (Stage 7).
+# Runs the medallion_pipeline DAG, launching Spark jobs via the DockerOperator on
+# the external `transactpulse` network created by infra/docker-compose.yml.
+#
+# Prereqs: the infra stack is up and the jobs image is built:
+#   docker compose -f infra/docker-compose.yml up -d --build
+# Then:
+#   docker compose -f orchestration/docker-compose.yml up -d
+#   open http://localhost:8088   (admin / admin)
+
+name: transactpulse-airflow
+
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.9.3
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    # The DockerOperator + docker SDK are installed at startup.
+    _PIP_ADDITIONAL_REQUIREMENTS: "apache-airflow-providers-docker"
+    TP_JOBS_IMAGE: "transactpulse/streaming:latest"
+    TP_NETWORK: "transactpulse"
+    MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+    MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+    LAKEHOUSE_BUCKET: ${LAKEHOUSE_BUCKET:-lakehouse}
+  # Run as root so the scheduler can reach the mounted Docker socket.
+  user: "0:0"
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - airflow-logs:/opt/airflow/logs
+    - /var/run/docker.sock:/var/run/docker.sock
+  depends_on:
+    airflow-db:
+      condition: service_healthy
+
+services:
+  airflow-db:
+    image: postgres:16
+    container_name: tp-airflow-db
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  airflow-init:
+    <<: *airflow-common
+    container_name: tp-airflow-init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate
+        airflow users create \
+          --username admin --password admin \
+          --firstname admin --lastname admin \
+          --role Admin --email admin@example.com || true
+    restart: "no"
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: tp-airflow-webserver
+    command: webserver
+    ports:
+      - "8088:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+    depends_on:
+      airflow-db:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: tp-airflow-scheduler
+    command: scheduler
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - airflow-logs:/opt/airflow/logs
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Shared artifact volumes also used by the job containers.
+      - tp-reports:/reports
+      - tp-models:/app/models
+    restart: unless-stopped
+    depends_on:
+      airflow-db:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+
+volumes:
+  airflow-db-data:
+    name: tp-airflow-db-data
+  airflow-logs:
+    name: tp-airflow-logs
+  tp-reports:
+    name: tp-reports
+  tp-models:
+    name: tp-models
