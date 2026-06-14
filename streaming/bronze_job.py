@@ -23,9 +23,7 @@ from streaming.schema import TRANSACTION_PAYLOAD_SCHEMA
 from streaming.spark_session import build_spark_session
 from streaming.transforms import build_bronze_frame
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("streaming.bronze")
 
 

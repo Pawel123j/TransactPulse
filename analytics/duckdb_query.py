@@ -89,9 +89,7 @@ def register_gold_views(con: duckdb.DuckDBPyConnection, config: DuckDBConfig) ->
     """Register each gold Delta table as a DuckDB view."""
     for table in GOLD_TABLES:
         location = f"s3://{config.bucket}/gold/{table}"
-        con.execute(
-            f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM delta_scan('{location}')"
-        )
+        con.execute(f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM delta_scan('{location}')")
 
 
 def run_statements(con: duckdb.DuckDBPyConnection, sql: str) -> list[list[tuple[Any, ...]]]:

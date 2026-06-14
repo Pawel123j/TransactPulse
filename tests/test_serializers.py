@@ -67,8 +67,11 @@ class _CollectingSink:
 
 def test_emitter_respects_stop_after() -> None:
     cfg = GeneratorConfig(
-        seed=5, rate=1000, apply_seasonality=False,
-        num_accounts=50, num_devices=60,
+        seed=5,
+        rate=1000,
+        apply_seasonality=False,
+        num_accounts=50,
+        num_devices=60,
     )
     sink = _CollectingSink()
     generator = TransactionGenerator(cfg)
@@ -80,8 +83,12 @@ def test_emitter_respects_stop_after() -> None:
 
 def test_emitter_stats_account_fraud_and_currency() -> None:
     cfg = GeneratorConfig(
-        seed=8, rate=2000, fraud_rate=0.5, apply_seasonality=False,
-        num_accounts=80, num_devices=90,
+        seed=8,
+        rate=2000,
+        fraud_rate=0.5,
+        apply_seasonality=False,
+        num_accounts=80,
+        num_devices=90,
     )
     sink = _CollectingSink()
     stats = run_emitter(cfg, sink, stop_after=400)

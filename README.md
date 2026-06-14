@@ -183,23 +183,40 @@ TransactPulse/
 
 ---
 
-## How to run
+## Quickstart
 
-> The full `docker compose up` experience is assembled incrementally across the
-> roadmap below and finalized in Stage 8. Until then, each stage's README section
-> documents how to run that slice.
+Bring up the **entire stack** with one command:
 
 ```bash
-# Clone
 git clone https://github.com/pawel123j/transactpulse.git
 cd transactpulse
 
-# (Stage 3+) bring up the base infrastructure (Kafka + MinIO)
-docker compose -f infra/docker-compose.yml up -d
-
-# (Stage 8) bring up the full stack — single command
-docker compose up
+docker compose up -d --build
 ```
+
+This starts Kafka (KRaft) + Kafka UI, MinIO, the bronze Spark stream, a synthetic
+transaction **generator**, Airflow, and the Streamlit **dashboard**.
+
+| Service          | URL                          | Login                      |
+| ---------------- | ---------------------------- | -------------------------- |
+| 📊 Dashboard      | http://localhost:8501        | —                          |
+| 🛠️ Airflow        | http://localhost:8088        | `admin` / `admin`          |
+| 📨 Kafka UI       | http://localhost:8080        | —                          |
+| 🪣 MinIO console  | http://localhost:9001        | `minioadmin` / `minioadmin123` |
+
+Then trigger the batch pipeline (or wait for the `@daily` schedule):
+
+```bash
+docker compose exec airflow-scheduler airflow dags trigger medallion_pipeline
+```
+
+The generator feeds Kafka → bronze fills continuously; the DAG promotes
+silver → gold → scoring → drift; the dashboard reads gold. First boot is slower
+(image builds + Spark package downloads).
+
+> Run slices standalone: [`infra/`](infra/README.md) (Kafka + MinIO),
+> [`streaming/`](streaming/README.md) (bronze), [`orchestration/`](orchestration/README.md)
+> (Airflow). Full architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ### Verify the infrastructure (Stage 3)
 
@@ -229,7 +246,7 @@ The project is built in eight checkpointed stages:
 - [x] **Stage 5 — Silver layer** — cleansing, dedup, data-quality gates, quarantine ([lakehouse/](lakehouse/README.md)).
 - [x] **Stage 6 — Gold layer & ML** — aggregates + fraud scoring + drift metrics ([lakehouse/](lakehouse/README.md)).
 - [x] **Stage 7 — Orchestration & query** — Airflow DAG ([orchestration/](orchestration/README.md)) + DuckDB ([analytics/](analytics/README.md)).
-- [ ] **Stage 8 — Dashboard, tests, CI** — Streamlit, full compose, GitHub Actions, `v1.0.0`.
+- [x] **Stage 8 — Dashboard, tests, CI** — Streamlit ([dashboard/](dashboard/README.md)), full compose, GitHub Actions, `v1.0.0`.
 
 ---
 
@@ -260,6 +277,9 @@ medallion** modeling (Delta Lake), **data quality** engineering (Great
 Expectations + quarantine), **orchestration** (Airflow), **ML integration**
 (batch scoring + drift), and **idempotent, containerized, reproducible**
 infrastructure (`docker compose up`).
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the per-layer breakdown and
+a competency map.
 
 ---
 

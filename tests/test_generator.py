@@ -56,8 +56,11 @@ def test_fraud_rate_within_tolerance() -> None:
 
 def test_late_events_produce_backdated_timestamps() -> None:
     cfg = GeneratorConfig(
-        seed=3, late_event_rate=1.0, late_max_delay_seconds=300,
-        num_accounts=50, num_devices=60,
+        seed=3,
+        late_event_rate=1.0,
+        late_max_delay_seconds=300,
+        num_accounts=50,
+        num_devices=60,
     )
     gen = TransactionGenerator(cfg)
     now = datetime(2026, 6, 13, 12, 0, 0, tzinfo=UTC)
@@ -67,7 +70,10 @@ def test_late_events_produce_backdated_timestamps() -> None:
 
 def test_no_late_events_when_rate_zero() -> None:
     cfg = GeneratorConfig(
-        seed=3, late_event_rate=0.0, num_accounts=50, num_devices=60,
+        seed=3,
+        late_event_rate=0.0,
+        num_accounts=50,
+        num_devices=60,
     )
     gen = TransactionGenerator(cfg)
     now = datetime(2026, 6, 13, 12, 0, 0, tzinfo=UTC)

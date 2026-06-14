@@ -86,8 +86,7 @@ class HeuristicFraudModel:
     def score_one(self, feature_vector: dict[str, float]) -> float:
         """Score a single feature dict (pure Python; used in lightweight tests)."""
         z = self._intercept + sum(
-            weight * float(feature_vector.get(name, 0.0))
-            for name, weight in self._weights.items()
+            weight * float(feature_vector.get(name, 0.0)) for name, weight in self._weights.items()
         )
         return 1.0 / (1.0 + math.exp(-z))
 

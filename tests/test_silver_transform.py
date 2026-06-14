@@ -98,12 +98,12 @@ def test_cast_and_normalize_currency_to_pln(spark):
     bronze = _bronze(spark, [{"data": _data()}])
     typed = cast_and_extract(bronze)
     normalized = normalize(typed, fx_rates_dataframe(spark)).collect()[0]
-    assert normalized["currency"] == "EUR"        # upper-cased
-    assert normalized["country"] == "DE"          # upper-cased
+    assert normalized["currency"] == "EUR"  # upper-cased
+    assert normalized["country"] == "DE"  # upper-cased
     assert normalized["channel"] == "POS"
     assert normalized["merchant_category"] == "grocery"  # lower-cased
     assert normalized["fx_rate_to_pln"] == 4.30
-    assert normalized["amount_pln"] == 430.0      # 100 * 4.30
+    assert normalized["amount_pln"] == 430.0  # 100 * 4.30
     assert normalized["event_date"] is not None
 
 
@@ -157,6 +157,6 @@ def test_to_silver_end_to_end(spark):
     ]
     bronze = _bronze(spark, records)
     valid, quarantine = to_silver(bronze, fx_rates_dataframe(spark))
-    assert valid.count() == 1          # 'a' deduped to one row, 'b' quarantined
+    assert valid.count() == 1  # 'a' deduped to one row, 'b' quarantined
     assert {r["transaction_id"] for r in valid.collect()} == {"a"}
     assert quarantine.count() == 1

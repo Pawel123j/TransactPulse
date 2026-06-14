@@ -31,21 +31,55 @@ from ingestion.schema import (
 
 # Hourly emission/volume weights (index 0..23). Low at night, lunch & evening peaks.
 HOURLY_WEIGHTS: tuple[float, ...] = (
-    0.30, 0.20, 0.15, 0.10, 0.10, 0.15,  # 00-05
-    0.30, 0.60, 0.90, 1.00, 1.00, 1.10,  # 06-11
-    1.20, 1.10, 1.00, 1.00, 1.05, 1.20,  # 12-17
-    1.30, 1.20, 1.00, 0.80, 0.60, 0.40,  # 18-23
+    0.30,
+    0.20,
+    0.15,
+    0.10,
+    0.10,
+    0.15,  # 00-05
+    0.30,
+    0.60,
+    0.90,
+    1.00,
+    1.00,
+    1.10,  # 06-11
+    1.20,
+    1.10,
+    1.00,
+    1.00,
+    1.05,
+    1.20,  # 12-17
+    1.30,
+    1.20,
+    1.00,
+    0.80,
+    0.60,
+    0.40,  # 18-23
 )
 
 # Country selection weights (home market PL dominant, EU heavy, others lighter).
 _COUNTRY_WEIGHTS: dict[str, float] = {
-    "PL": 0.45, "DE": 0.12, "GB": 0.08, "US": 0.07, "FR": 0.06, "ES": 0.05,
-    "IT": 0.04, "NL": 0.04, "CZ": 0.03, "SK": 0.03, "UA": 0.02, "CN": 0.01,
+    "PL": 0.45,
+    "DE": 0.12,
+    "GB": 0.08,
+    "US": 0.07,
+    "FR": 0.06,
+    "ES": 0.05,
+    "IT": 0.04,
+    "NL": 0.04,
+    "CZ": 0.03,
+    "SK": 0.03,
+    "UA": 0.02,
+    "CN": 0.01,
 }
 
 # Merchant categories that are over-represented among fraudulent transactions.
 _FRAUD_PRONE_CATEGORIES: tuple[str, ...] = (
-    "cash_withdrawal", "gambling", "electronics", "online_services", "travel",
+    "cash_withdrawal",
+    "gambling",
+    "electronics",
+    "online_services",
+    "travel",
 )
 
 

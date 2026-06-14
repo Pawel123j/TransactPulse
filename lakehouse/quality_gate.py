@@ -35,9 +35,7 @@ def evaluate_gate(report: dict[str, Any], max_quarantine_ratio: float = 0.05) ->
     if total > 0:
         ratio = quarantined / total
         if ratio > max_quarantine_ratio:
-            failures.append(
-                f"quarantine ratio {ratio:.3f} exceeds max {max_quarantine_ratio:.3f}"
-            )
+            failures.append(f"quarantine ratio {ratio:.3f} exceeds max {max_quarantine_ratio:.3f}")
     return failures
 
 

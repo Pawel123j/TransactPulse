@@ -10,8 +10,12 @@ from ingestion.config import GeneratorConfig, KafkaConfig
 def test_generator_from_env_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     # Ensure a clean environment so we exercise the field defaults.
     for var in (
-        "GEN_RATE", "GEN_DURATION_SECONDS", "GEN_FRAUD_RATE", "GEN_SEED",
-        "GEN_BURST_ENABLED", "GEN_APPLY_SEASONALITY",
+        "GEN_RATE",
+        "GEN_DURATION_SECONDS",
+        "GEN_FRAUD_RATE",
+        "GEN_SEED",
+        "GEN_BURST_ENABLED",
+        "GEN_APPLY_SEASONALITY",
     ):
         monkeypatch.delenv(var, raising=False)
     cfg = GeneratorConfig.from_env()

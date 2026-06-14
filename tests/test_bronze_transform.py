@@ -34,11 +34,11 @@ def spark():
 
 def _kafka_like_row(value: dict, *, partition: int = 0, offset: int = 0):
     return (
-        "ACC-1",                                   # key
-        json.dumps(value),                          # value (raw JSON)
-        "transactions.raw",                         # topic
-        partition,                                  # partition
-        offset,                                      # offset
+        "ACC-1",  # key
+        json.dumps(value),  # value (raw JSON)
+        "transactions.raw",  # topic
+        partition,  # partition
+        offset,  # offset
         datetime(2026, 6, 13, 12, 0, tzinfo=UTC),  # timestamp
     )
 

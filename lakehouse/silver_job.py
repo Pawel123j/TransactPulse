@@ -22,9 +22,7 @@ from lakehouse.transforms import SILVER_COLUMNS, to_silver
 if TYPE_CHECKING:  # pragma: no cover
     from pyspark.sql import DataFrame, SparkSession
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("lakehouse.silver")
 
 
@@ -107,9 +105,7 @@ def main() -> None:
     optimize_silver(spark, config)
 
     silver = spark.read.format("delta").load(config.silver_path)
-    metrics = generate_report(
-        silver, quarantine_count=quarantine_count, docs_dir=config.docs_dir
-    )
+    metrics = generate_report(silver, quarantine_count=quarantine_count, docs_dir=config.docs_dir)
     logger.info("silver done: %s rows, %s quarantined", metrics["row_count"], quarantine_count)
 
 

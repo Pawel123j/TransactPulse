@@ -95,20 +95,14 @@ class GeneratorConfig:
             duration_seconds=_env_int("GEN_DURATION_SECONDS", d.duration_seconds),
             fraud_rate=_env_float("GEN_FRAUD_RATE", d.fraud_rate),
             late_event_rate=_env_float("GEN_LATE_EVENT_RATE", d.late_event_rate),
-            late_max_delay_seconds=_env_int(
-                "GEN_LATE_MAX_DELAY_SECONDS", d.late_max_delay_seconds
-            ),
+            late_max_delay_seconds=_env_int("GEN_LATE_MAX_DELAY_SECONDS", d.late_max_delay_seconds),
             num_accounts=_env_int("GEN_NUM_ACCOUNTS", d.num_accounts),
             num_devices=_env_int("GEN_NUM_DEVICES", d.num_devices),
             apply_seasonality=_env_bool("GEN_APPLY_SEASONALITY", d.apply_seasonality),
             burst_enabled=_env_bool("GEN_BURST_ENABLED", d.burst_enabled),
             burst_factor=_env_float("GEN_BURST_FACTOR", d.burst_factor),
-            burst_interval_seconds=_env_int(
-                "GEN_BURST_INTERVAL_SECONDS", d.burst_interval_seconds
-            ),
-            burst_duration_seconds=_env_int(
-                "GEN_BURST_DURATION_SECONDS", d.burst_duration_seconds
-            ),
+            burst_interval_seconds=_env_int("GEN_BURST_INTERVAL_SECONDS", d.burst_interval_seconds),
+            burst_duration_seconds=_env_int("GEN_BURST_DURATION_SECONDS", d.burst_duration_seconds),
             seed=int(seed_raw) if seed_raw not in (None, "") else None,
         )
 

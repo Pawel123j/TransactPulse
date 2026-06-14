@@ -32,9 +32,7 @@ from lakehouse.spark_session import build_spark_session
 if TYPE_CHECKING:  # pragma: no cover
     from pyspark.sql import DataFrame, SparkSession
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("lakehouse.gold")
 
 _DRIFT_SAMPLE_SIZE = 5000

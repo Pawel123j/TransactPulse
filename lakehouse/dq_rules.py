@@ -105,8 +105,7 @@ RULES: tuple[Rule, ...] = (
     Rule(
         "amount_in_range",
         f"amount must be a number in ({AMOUNT_MIN}, {AMOUNT_MAX}]",
-        lambda r: _is_number(r.get("amount"))
-        and AMOUNT_MIN < float(r["amount"]) <= AMOUNT_MAX,
+        lambda r: _is_number(r.get("amount")) and AMOUNT_MIN < float(r["amount"]) <= AMOUNT_MAX,
         f"amount IS NOT NULL AND amount > {AMOUNT_MIN} AND amount <= {AMOUNT_MAX}",
     ),
     Rule(
@@ -131,9 +130,7 @@ RULES: tuple[Rule, ...] = (
         "merchant_category_allowed",
         "merchant_category must be a known category",
         lambda r: r.get("merchant_category") in ALLOWED_CATEGORIES,
-        "merchant_category IN ({})".format(
-            ", ".join(f"'{c}'" for c in sorted(ALLOWED_CATEGORIES))
-        ),
+        "merchant_category IN ({})".format(", ".join(f"'{c}'" for c in sorted(ALLOWED_CATEGORIES))),
     ),
 )
 

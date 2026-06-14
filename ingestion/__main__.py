@@ -30,23 +30,36 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--rate", type=float, help="Target transactions per second.")
     parser.add_argument(
-        "--duration", type=int, dest="duration_seconds",
+        "--duration",
+        type=int,
+        dest="duration_seconds",
         help="Run duration in seconds (0 = run until interrupted).",
     )
-    parser.add_argument("--fraud-rate", type=float, dest="fraud_rate",
-                        help="Fraction of fraudulent transactions (e.g. 0.003).")
+    parser.add_argument(
+        "--fraud-rate",
+        type=float,
+        dest="fraud_rate",
+        help="Fraction of fraudulent transactions (e.g. 0.003).",
+    )
     parser.add_argument("--seed", type=int, help="RNG seed for reproducible output.")
-    parser.add_argument("--burst", action="store_true",
-                        help="Enable periodic traffic bursts.")
-    parser.add_argument("--no-seasonality", action="store_true",
-                        help="Disable hourly rate seasonality.")
-    parser.add_argument("--bootstrap-servers", dest="bootstrap_servers",
-                        help="Kafka bootstrap servers (host:port,...).")
+    parser.add_argument("--burst", action="store_true", help="Enable periodic traffic bursts.")
+    parser.add_argument(
+        "--no-seasonality", action="store_true", help="Disable hourly rate seasonality."
+    )
+    parser.add_argument(
+        "--bootstrap-servers",
+        dest="bootstrap_servers",
+        help="Kafka bootstrap servers (host:port,...).",
+    )
     parser.add_argument("--topic", help="Destination Kafka topic.")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Print records to stdout instead of producing to Kafka.")
-    parser.add_argument("--max-records", type=int, dest="max_records",
-                        help="Stop after N records (smoke tests).")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print records to stdout instead of producing to Kafka.",
+    )
+    parser.add_argument(
+        "--max-records", type=int, dest="max_records", help="Stop after N records (smoke tests)."
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose logging.")
     return parser
 
@@ -98,9 +111,7 @@ def main(argv: list[str] | None = None) -> int:
         failed = sink.failed
     else:
         kafka_cfg = _kafka_config(args)
-        log.info(
-            "producing to topic=%s on %s", kafka_cfg.topic, kafka_cfg.bootstrap_servers
-        )
+        log.info("producing to topic=%s on %s", kafka_cfg.topic, kafka_cfg.bootstrap_servers)
         with KafkaTransactionProducer(kafka_cfg) as producer:
             stats = run_emitter(gen_cfg, producer, stop_after=args.max_records)
         failed = producer.failed

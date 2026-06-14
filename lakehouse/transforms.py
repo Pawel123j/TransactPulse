@@ -72,9 +72,7 @@ def normalize(df: DataFrame, fx_rates: DataFrame) -> DataFrame:
 
 def _dq_errors_column():
     """Build an array column of the names of every failing rule (null-safe)."""
-    candidates = [
-        F.when(~F.expr(rule.spark_expr), F.lit(rule.name)) for rule in RULES
-    ]
+    candidates = [F.when(~F.expr(rule.spark_expr), F.lit(rule.name)) for rule in RULES]
     return F.filter(F.array(*candidates), lambda x: x.isNotNull())
 
 
@@ -103,11 +101,7 @@ def deduplicate(df: DataFrame) -> DataFrame:
         F.col("ingestion_time").desc_nulls_last(),
         F.col("_offset").desc_nulls_last(),
     )
-    return (
-        df.withColumn("_rn", F.row_number().over(window))
-        .filter(F.col("_rn") == 1)
-        .drop("_rn")
-    )
+    return df.withColumn("_rn", F.row_number().over(window)).filter(F.col("_rn") == 1).drop("_rn")
 
 
 def to_silver(bronze: DataFrame, fx_rates: DataFrame) -> tuple[DataFrame, DataFrame]:

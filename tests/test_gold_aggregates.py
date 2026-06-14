@@ -41,8 +41,16 @@ def _silver(spark):
         ("t3", datetime(2026, 6, 13, 12), d, "A2", 200.0, "DE", "POS", "travel", False, "D3"),
     ]
     cols = [
-        "transaction_id", "event_time", "event_date", "account_id", "amount_pln",
-        "country", "channel", "merchant_category", "is_fraud_label", "device_id",
+        "transaction_id",
+        "event_time",
+        "event_date",
+        "account_id",
+        "amount_pln",
+        "country",
+        "channel",
+        "merchant_category",
+        "is_fraud_label",
+        "device_id",
     ]
     return spark.createDataFrame(rows, cols)
 
