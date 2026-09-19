@@ -33,8 +33,7 @@ financial transactions, built in eight checkpointed stages.
 - **Quality** — 121 automated tests (109 fast + 12 Spark), ruff lint/format, and
   a GitHub Actions pipeline.
 - **Security** — `SECURITY.md` documenting the development-stack trade-offs;
-  bandit (SAST) and gitleaks (secret scanning) as blocking CI jobs, plus a
-  report-only Trivy dependency/filesystem scan.
+  bandit (SAST) and gitleaks (secret scanning, full history) as blocking CI jobs.
 
 ### Changed (during release preparation)
 
@@ -64,7 +63,9 @@ financial transactions, built in eight checkpointed stages.
   files and builds both images; see the README for the manual procedure.
 - Spark and Airflow jobs are covered by unit tests of their transformation
   logic, not by an executed pipeline run.
-- Trivy runs in report-only mode; a blocking dependency gate is planned for
-  v1.1.
+- **Dependency/CVE scanning is not wired up.** Trivy was evaluated but left out
+  of v1.0.0: it would have required an unpinned third-party action or an
+  unverified image tag inside the supply-chain gate itself. Planned for v1.1
+  together with SBOM generation and Dependabot.
 
 [1.0.0]: https://github.com/Pawel123j/TransactPulse/releases/tag/v1.0.0

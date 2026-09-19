@@ -62,7 +62,7 @@ jobs:
             tests/test_gold_aggregates.py
 
   security:
-    name: Security checks (bandit, gitleaks, trivy)
+    name: Security checks (bandit, gitleaks)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -84,18 +84,10 @@ jobs:
           GITLEAKS_VERSION: 8.21.2
       - name: Gitleaks (secret scanning) — blocking
         run: /tmp/gitleaks dir . --no-banner --redact
-      # Dependency/filesystem CVE scan. Report-only on purpose: the advisory feed
-      # changes daily and must not turn an untouched commit red. Findings are
-      # reviewed in the job log (tightened to blocking in the v1.1 roadmap).
-      - name: Trivy (filesystem & dependency CVEs) — report only
-        continue-on-error: true
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: "0"
+      # A Trivy dependency/CVE scan is planned for v1.1 (see SECURITY.md). It is
+      # deliberately not wired up here yet: it would have to run either from an
+      # unpinned third-party action or from an unverified image tag, and neither
+      # belongs in the job that is supposed to be the supply-chain gate.
 
   docker-build:
     name: Validate Docker builds

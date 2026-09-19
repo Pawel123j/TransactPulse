@@ -21,7 +21,6 @@ Run on every push and pull request
 | ---- | ----- | --------- |
 | **Bandit** | Python SAST over `analytics/`, `dashboard/`, `ingestion/`, `lakehouse/`, `orchestration/`, `streaming/` | **Yes** — the job fails on any finding |
 | **Gitleaks** | Secret scanning across the working tree and the full git history | **Yes** |
-| **Trivy** | Filesystem & dependency CVE scan (`HIGH`, `CRITICAL`, `--ignore-unfixed`) | No — report only |
 | **ruff** | Lint + format, including rules that catch unsafe patterns | **Yes** |
 | **pytest** | 109 fast tests + 12 Spark tests | **Yes** |
 
@@ -36,10 +35,15 @@ why it is safe in this context:
 | `B108` hardcoded `/tmp` path | `orchestration/dags/medallion_pipeline.py` | Container-internal Ivy cache path backed by a named Docker volume, not host `/tmp`. |
 | `B608` SQL built from a string | `analytics/duckdb_query.py` | `CREATE VIEW` cannot take bind parameters; the view name comes from a module constant and the bucket is validated against a strict allowlist regex before interpolation. |
 
-**Trivy is report-only on purpose.** The advisory feed changes daily, so a
-blocking gate would turn untouched commits red for reasons unrelated to the
-code. Findings are reviewed in the job log; making it blocking (plus SBOM
-generation and Dependabot) is a v1.1 roadmap item.
+**Dependency/CVE scanning is a v1.1 item, not part of v1.0.0.** Adding Trivy
+would mean running it from an unpinned third-party action or an unverified image
+tag — an unacceptable trade in the very job that is meant to be the supply-chain
+gate, and a source of CI flakiness (the advisory feed changes daily, so a
+blocking gate turns untouched commits red). v1.1 adds it properly: a pinned
+Trivy release, SBOM generation and Dependabot.
+
+Nothing else compensates for this gap today — dependency CVEs in this project's
+Python and container dependencies are currently **unmonitored**.
 
 ---
 
