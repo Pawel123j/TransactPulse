@@ -36,6 +36,67 @@ jobs:
       - name: Run tests
         run: pytest -q
 
+  spark-tests:
+    name: Spark transformation tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17" # Spark 3.5 supports Java 8/11/17.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dev + Spark dependencies
+        run: pip install -r requirements-dev.txt -r requirements-spark.txt
+      # TP_REQUIRE_SPARK=1 turns a missing PySpark into a hard failure, so these
+      # tests can never silently skip here (see tests/spark_support.py).
+      - name: Run Spark tests
+        env:
+          TP_REQUIRE_SPARK: "1"
+        run: |
+          pytest -q -rs \
+            tests/test_bronze_transform.py \
+            tests/test_silver_transform.py \
+            tests/test_gold_aggregates.py
+
+  security:
+    name: Security checks (bandit, gitleaks, trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks scans the full history
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install bandit
+        run: pip install "bandit[toml]>=1.7,<2"
+      - name: Bandit (Python SAST) — blocking
+        run: bandit -c pyproject.toml -r analytics dashboard ingestion lakehouse orchestration streaming
+      - name: Install gitleaks
+        run: |
+          curl -sSL -o /tmp/gitleaks.tar.gz \
+            https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+        env:
+          GITLEAKS_VERSION: 8.21.2
+      - name: Gitleaks (secret scanning) — blocking
+        run: /tmp/gitleaks dir . --no-banner --redact
+      # Dependency/filesystem CVE scan. Report-only on purpose: the advisory feed
+      # changes daily and must not turn an untouched commit red. Findings are
+      # reviewed in the job log (tightened to blocking in the v1.1 roadmap).
+      - name: Trivy (filesystem & dependency CVEs) — report only
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "0"
+
   docker-build:
     name: Validate Docker builds
     runs-on: ubuntu-latest

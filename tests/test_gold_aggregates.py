@@ -1,4 +1,4 @@
-"""Spark tests for gold aggregations (skipped without PySpark)."""
+"""Spark tests for gold aggregations (mandatory in the CI Spark job)."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ from datetime import date, datetime
 
 import pytest
 
-pytest.importorskip("pyspark")
+from tests.spark_support import local_spark_session, requires_spark
 
-from pyspark.sql import SparkSession  # noqa: E402
+requires_spark()
 
 from lakehouse.gold_aggregates import (  # noqa: E402
     account_velocity,
@@ -20,13 +20,7 @@ from lakehouse.gold_aggregates import (  # noqa: E402
 
 @pytest.fixture(scope="module")
 def spark():
-    session = (
-        SparkSession.builder.master("local[1]")
-        .appName("transactpulse-gold-tests")
-        .config("spark.sql.shuffle.partitions", "1")
-        .config("spark.ui.enabled", "false")
-        .getOrCreate()
-    )
+    session = local_spark_session("transactpulse-gold-tests")
     yield session
     session.stop()
 

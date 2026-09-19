@@ -107,4 +107,7 @@ reference are written to `docs/drift/` — see the example
 - `tests/test_drift.py` — PSI / KS metrics (pure Python).
 - `tests/test_model_scoring.py` — model wrapper + pandas scoring (no Spark).
 - `tests/test_silver_transform.py`, `tests/test_gold_aggregates.py` — Spark
-  transforms (skipped without PySpark; run in CI).
+  transforms. Skipped locally when PySpark is missing; the CI `spark-tests` job
+  installs it and sets `TP_REQUIRE_SPARK=1`, which makes a missing PySpark a
+  failure instead of a skip. Run them locally with:
+  `pip install -r requirements-spark.txt && TP_REQUIRE_SPARK=1 pytest -q tests/test_silver_transform.py tests/test_gold_aggregates.py` (needs a JDK).

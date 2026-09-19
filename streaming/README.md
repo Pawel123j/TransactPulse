@@ -74,5 +74,7 @@ spark-submit \
 ## Tests
 
 `tests/test_bronze_transform.py` exercises `build_bronze_frame` on a local
-SparkSession (no Kafka/Delta/S3). It is skipped automatically where PySpark is not
-installed and runs in CI (Stage 8).
+SparkSession (no Kafka/Delta/S3). It is skipped where PySpark is not installed and
+executed by the CI `spark-tests` job (Java 17 + PySpark, `TP_REQUIRE_SPARK=1`, so
+a missing PySpark fails instead of skipping). Locally:
+`pip install -r requirements-spark.txt && TP_REQUIRE_SPARK=1 pytest -q tests/test_bronze_transform.py`.

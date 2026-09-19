@@ -1,7 +1,8 @@
 """Tests for the bronze transformation.
 
-These run against a plain local SparkSession (no Kafka/Delta/S3 required) and are
-skipped automatically if PySpark is not installed.
+These run against a plain local SparkSession (no Kafka/Delta/S3 required). They
+are skipped when PySpark is missing locally, and are mandatory in the CI
+``spark-tests`` job (``TP_REQUIRE_SPARK=1``).
 """
 
 from __future__ import annotations
@@ -11,23 +12,39 @@ from datetime import UTC, datetime
 
 import pytest
 
-pytest.importorskip("pyspark")
+from tests.spark_support import local_spark_session, requires_spark
 
-from pyspark.sql import SparkSession  # noqa: E402
+requires_spark()
+
+from pyspark.sql.types import (  # noqa: E402
+    IntegerType,
+    LongType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampType,
+)
 
 from streaming.schema import TRANSACTION_PAYLOAD_SCHEMA  # noqa: E402
 from streaming.transforms import BRONZE_COLUMNS, build_bronze_frame  # noqa: E402
 
+#: Schema of the Kafka source DataFrame, declared explicitly so rows with null
+#: columns (e.g. the malformed-payload case) do not rely on type inference.
+_KAFKA_SOURCE_SCHEMA = StructType(
+    [
+        StructField("key", StringType()),
+        StructField("value", StringType()),
+        StructField("topic", StringType()),
+        StructField("partition", IntegerType()),
+        StructField("offset", LongType()),
+        StructField("timestamp", TimestampType()),
+    ]
+)
+
 
 @pytest.fixture(scope="module")
 def spark():
-    session = (
-        SparkSession.builder.master("local[1]")
-        .appName("transactpulse-tests")
-        .config("spark.sql.shuffle.partitions", "1")
-        .config("spark.ui.enabled", "false")
-        .getOrCreate()
-    )
+    session = local_spark_session("transactpulse-bronze-tests")
     yield session
     session.stop()
 
@@ -59,8 +76,7 @@ def _sample_payload() -> dict:
 
 
 def _raw_df(spark, rows):
-    cols = ["key", "value", "topic", "partition", "offset", "timestamp"]
-    return spark.createDataFrame(rows, cols)
+    return spark.createDataFrame(rows, _KAFKA_SOURCE_SCHEMA)
 
 
 def test_bronze_has_expected_columns(spark):
@@ -101,9 +117,11 @@ def test_bronze_is_append_only_no_dedup(spark):
 
 
 def test_bronze_tolerates_malformed_json(spark):
-    # A bad payload must not crash the job; data parses to null, raw value kept.
-    rows = [("ACC-x", "{not-json", "transactions.raw", 0, 9, None)]
+    # A bad payload must not crash the job and must keep the raw value verbatim.
+    # `from_json` in PERMISSIVE mode yields a struct whose fields are all null —
+    # the silver data-quality gate then routes such a record to quarantine.
+    rows = [("ACC-x", "{not-json", "transactions.raw", 0, 9, datetime(2026, 6, 13, tzinfo=UTC))]
     raw = _raw_df(spark, rows)
     row = build_bronze_frame(raw, TRANSACTION_PAYLOAD_SCHEMA).collect()[0]
     assert row["value"] == "{not-json"
-    assert row["data"] is None
+    assert all(value is None for value in row["data"].asDict().values())

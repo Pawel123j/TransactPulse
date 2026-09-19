@@ -111,7 +111,9 @@ class TransactionGenerator:
 
     def __init__(self, config: GeneratorConfig) -> None:
         self.config = config
-        self._rng = random.Random(config.seed)
+        # Synthetic test data: reproducibility matters here, cryptographic strength
+        # does not. No security decision is derived from these values.
+        self._rng = random.Random(config.seed)  # nosec B311
         self._faker = Faker()
         if config.seed is not None:
             Faker.seed(config.seed)

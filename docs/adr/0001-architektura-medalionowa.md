@@ -75,7 +75,7 @@ boundaries explicit.
 
 ### Neutral / follow-ups
 
-- Query ergonomics on gold are delegated to DuckDB/Trino — see
+- Query ergonomics on gold are delegated to DuckDB (Trino remains a v2.0 option) — see
   [ADR 0008](0008-duckdb-vs-trino.md) (added in Stage 7).
 - Concrete engine choices (Kafka, Spark, Delta, MinIO) are justified in
   [ADR 0002](0002-wybor-stacku.md).

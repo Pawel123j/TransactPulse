@@ -46,7 +46,8 @@ JOB_ENV = {
 MOUNTS = [
     Mount(source="tp-reports", target="/reports", type="volume"),
     Mount(source="tp-models", target="/app/models", type="volume"),
-    Mount(source="tp-spark-ivy", target="/tmp/.ivy2", type="volume"),
+    # Container-internal path backed by a named Docker volume, not host /tmp.
+    Mount(source="tp-spark-ivy", target="/tmp/.ivy2", type="volume"),  # nosec B108
 ]
 
 

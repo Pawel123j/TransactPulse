@@ -106,8 +106,17 @@ scores, and the data-quality / drift panels.
 - **Data quality as a first-class gate** — bad data is quarantined, not silently
   dropped; promotion to gold is blocked on failing checks.
 - **Containerized** — the whole stack runs with one `docker compose up`.
-- **Tested & linted** — pure-Python logic is unit-tested; Spark transforms have
-  Spark tests (run in CI); ruff + pytest + docker-build run in GitHub Actions.
+- **Tested & linted** — 109 pure-Python tests plus 12 Spark transformation tests;
+  the CI `spark-tests` job installs PySpark on Java 17 and sets
+  `TP_REQUIRE_SPARK=1` so those tests cannot silently skip.
+- **Security-aware** — bandit (SAST) and gitleaks (secret scanning) gate CI, Trivy
+  reports dependency CVEs, and the dev-stack trade-offs (default credentials,
+  plaintext Kafka, the mounted Docker socket) are documented in
+  [`../SECURITY.md`](../SECURITY.md) rather than glossed over.
+- **Verified where it can be** — lint, tests, bandit, gitleaks and
+  `docker compose config` run on every commit. The **live end-to-end run is a
+  manual procedure** (README → *End-to-end verification*); neither CI nor the
+  release preparation executed the full stack.
 
 ## What this project demonstrates
 
@@ -118,12 +127,13 @@ For interviews and reviews, TransactPulse shows hands-on command of:
 | **Real-time streaming** | Kafka (KRaft) + Spark Structured Streaming → bronze |
 | **Lakehouse & medallion modeling** | Delta bronze/silver/gold on MinIO |
 | **Exactly-once / idempotency** | checkpointing + Delta MERGE/overwrite |
-| **Data quality engineering** | native gate + quarantine + Great Expectations |
+| **Data quality engineering** | native Spark gate + quarantine, reported via a Great Expectations suite (optional dep) |
 | **Late / out-of-order data** | watermark horizon + late-event generation |
 | **ML integration at scale** | `pandas_udf` batch scoring + heuristic fallback |
 | **ML observability** | PSI/KS drift on gold |
 | **Orchestration** | Airflow DAG with DQ gate, retries, alerting |
 | **Analytics serving** | DuckDB over Delta + Streamlit dashboard |
 | **Engineering hygiene** | ADRs, conventional commits, tests, CI, Docker |
+| **Security engineering** | bandit + gitleaks in CI, least-privilege gaps documented in SECURITY.md |
 
 See the [ADRs](adr/) for the reasoning behind each major decision.

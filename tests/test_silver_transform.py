@@ -1,4 +1,4 @@
-"""Spark tests for the silver transformations (skipped without PySpark)."""
+"""Spark tests for the silver transformations (mandatory in the CI Spark job)."""
 
 from __future__ import annotations
 
@@ -6,9 +6,10 @@ from datetime import datetime
 
 import pytest
 
-pytest.importorskip("pyspark")
+from tests.spark_support import local_spark_session, requires_spark
 
-from pyspark.sql import SparkSession  # noqa: E402
+requires_spark()
+
 from pyspark.sql.types import (  # noqa: E402
     BooleanType,
     DoubleType,
@@ -54,13 +55,7 @@ _BRONZE_SCHEMA = StructType(
 
 @pytest.fixture(scope="module")
 def spark():
-    session = (
-        SparkSession.builder.master("local[1]")
-        .appName("transactpulse-silver-tests")
-        .config("spark.sql.shuffle.partitions", "1")
-        .config("spark.ui.enabled", "false")
-        .getOrCreate()
-    )
+    session = local_spark_session("transactpulse-silver-tests")
     yield session
     session.stop()
 

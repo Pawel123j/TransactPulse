@@ -26,6 +26,31 @@ GOLD_TABLES: tuple[str, ...] = (
 )
 
 
+#: Identifiers (view names, bucket) are interpolated into SQL, so they are
+#: restricted to a conservative character set before they ever reach DuckDB.
+_SAFE_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_SAFE_BUCKET = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{1,62}$")
+
+
+def _check_identifier(value: str, kind: str) -> str:
+    """Return ``value`` if it is a safe SQL identifier, else raise ``ValueError``."""
+    if not _SAFE_IDENTIFIER.match(value):
+        raise ValueError(f"unsafe {kind}: {value!r}")
+    return value
+
+
+def _check_bucket(value: str) -> str:
+    """Return ``value`` if it is a plausible S3 bucket name, else raise ``ValueError``."""
+    if not _SAFE_BUCKET.match(value):
+        raise ValueError(f"unsafe bucket name: {value!r}")
+    return value
+
+
+def _quote_literal(value: str) -> str:
+    """Escape a string for use inside a single-quoted DuckDB literal."""
+    return value.replace("'", "''")
+
+
 @dataclass(slots=True)
 class DuckDBConfig:
     """Connection settings for reading the lakehouse from DuckDB."""
@@ -76,20 +101,33 @@ def connect(config: DuckDBConfig) -> duckdb.DuckDBPyConnection:
     con = duckdb.connect()
     con.execute("INSTALL httpfs; LOAD httpfs;")
     con.execute("INSTALL delta; LOAD delta;")
-    con.execute(f"SET s3_endpoint='{config.s3_host}';")
+    # DuckDB `SET` does not accept bind parameters, so the values are escaped.
+    con.execute(f"SET s3_endpoint='{_quote_literal(config.s3_host)}';")
     con.execute(f"SET s3_use_ssl={'true' if config.use_ssl else 'false'};")
     con.execute("SET s3_url_style='path';")
-    con.execute(f"SET s3_access_key_id='{config.s3_access_key}';")
-    con.execute(f"SET s3_secret_access_key='{config.s3_secret_key}';")
+    con.execute(f"SET s3_access_key_id='{_quote_literal(config.s3_access_key)}';")
+    con.execute(f"SET s3_secret_access_key='{_quote_literal(config.s3_secret_key)}';")
     con.execute("SET s3_region='us-east-1';")
     return con
 
 
 def register_gold_views(con: duckdb.DuckDBPyConnection, config: DuckDBConfig) -> None:
-    """Register each gold Delta table as a DuckDB view."""
+    """Register each gold Delta table as a DuckDB view.
+
+    View names come from :data:`GOLD_TABLES` and the bucket from configuration;
+    both are validated before interpolation because ``CREATE VIEW`` cannot take
+    bind parameters.
+    """
+    bucket = _check_bucket(config.bucket)
     for table in GOLD_TABLES:
-        location = f"s3://{config.bucket}/gold/{table}"
-        con.execute(f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM delta_scan('{location}')")
+        name = _check_identifier(table, "gold table")
+        location = f"s3://{bucket}/gold/{name}"
+        # Identifier and bucket are validated above; no user input reaches this SQL.
+        view_sql = (
+            f"CREATE OR REPLACE VIEW {name} "  # nosec B608
+            f"AS SELECT * FROM delta_scan('{location}')"
+        )
+        con.execute(view_sql)
 
 
 def run_statements(con: duckdb.DuckDBPyConnection, sql: str) -> list[list[tuple[Any, ...]]]:

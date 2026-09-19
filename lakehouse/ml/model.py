@@ -5,12 +5,17 @@
 * :class:`SklearnFraudModel` — wraps a fitted scikit-learn estimator;
 * :class:`HeuristicFraudModel` — a deterministic, dependency-free fallback used
   when no artifact is available, so the gold pipeline always produces scores.
+
+Security note: the pickle is only ever read from a path this project writes
+itself (the ``train_fraud_model`` job → the ``tp-models`` volume). Never point
+``GOLD_MODEL_PATH`` at an artifact from an untrusted source — unpickling
+executes code. See SECURITY.md.
 """
 
 from __future__ import annotations
 
 import math
-import pickle
+import pickle  # nosec B403
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
@@ -106,7 +111,9 @@ def load_model(path: str | Path) -> FraudModel | None:
         return None
     try:
         with p.open("rb") as fh:
-            return pickle.load(fh)  # noqa: S301 - trusted local artifact
+            # The artifact is written by our own training job onto a local/volume
+            # path; a model from an untrusted source must never be loaded here.
+            return pickle.load(fh)  # noqa: S301  # nosec B301
     except Exception:  # noqa: BLE001 - any load failure -> caller falls back
         return None
 
