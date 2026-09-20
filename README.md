@@ -484,7 +484,7 @@ production-hardened — knowing the gap is part of the exercise. Full write-up i
 | **Exposure** | Dashboard (8501), Airflow (8088, `admin`/`admin`), Kafka UI (8080) and MinIO console (9001) published on localhost with dev logins | Nothing public without authentication: SSO/OIDC in front of Airflow and Streamlit, private networking, an ingress/WAF, audit logging |
 | **Data** | 100 % synthetic, no PII | Real transaction data is regulated (PCI-DSS/GDPR): encryption at rest and in transit, tokenized PAN/account identifiers, field-level access control, retention limits, lineage and audit trails |
 | **Model artifact** | `pickle` read from a local path | Unpickling executes code: signed artifacts from a model registry, integrity verification before load |
-| **Supply chain** | bandit, gitleaks and `pip-audit` block CI; Trivy runs advisory-only; Dependabot opens weekly update PRs | SBOM generation, pinned and signed base images, a blocking image-CVE gate |
+| **Supply chain** | bandit, gitleaks and `pip-audit` all block CI; Dependabot opens weekly update PRs | A second scanner (Trivy — see SECURITY.md), SBOM generation, pinned and signed base images, a blocking image-CVE gate |
 
 > ⚠️ **Do not expose this stack to an untrusted network.** The default
 > credentials are public knowledge — they exist so the demo starts in one
@@ -510,7 +510,7 @@ on one laptop:
 
 | Release | Scope |
 | ------- | ----- |
-| **v1.1** | Prometheus + Grafana for stack metrics · MLflow for experiment tracking · a dedicated data-quality dashboard fed by the quarantine table · SBOM generation · signed and pinned container base images · promoting the Trivy scan to a blocking gate |
+| **v1.1** | Prometheus + Grafana for stack metrics · MLflow for experiment tracking · a dedicated data-quality dashboard fed by the quarantine table · SBOM generation · signed and pinned container base images · a Trivy scan alongside pip-audit |
 | **v1.2** | Automatic model retraining triggered by the drift signal · a model registry · Confluent Schema Registry + Avro on the wire ([ADR 0003](docs/adr/0003-format-serializacji.md)) · alerting on DQ-gate and DAG failures |
 | **v2.0** | Trino as a distributed serving layer ([ADR 0008](docs/adr/0008-duckdb-vs-trino.md)) · horizontal scale-out of the Spark jobs · cloud / Kubernetes deployment (Terraform + Helm) |
 

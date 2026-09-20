@@ -42,7 +42,6 @@ Dependency CVEs **are** gated in CI as of v1.0.1:
 | Tool | Scope | Blocking? |
 | ---- | ----- | --------- |
 | `pip-audit` | every `requirements*.txt` in the repo, resolved against the Python advisory database | **Yes** |
-| Trivy `fs` | filesystem vulnerabilities and IaC misconfiguration | No — advisory only, see below |
 | Dependabot | weekly PRs for pip, GitHub Actions and Docker base images | n/a |
 
 `pip-audit` is the blocking gate because it installs from PyPI: no third-party
@@ -52,14 +51,22 @@ attempt. All five requirements files are currently clean.
 The advisory feed moves daily, so an advisory with no released fix can appear
 against an untouched commit. The answer is **not** to weaken the gate: add
 `--ignore-vuln <ID>` to the step with a one-line justification, which keeps the
-exception explicit and reviewable in the diff. The Trivy scan runs with
-`--ignore-unfixed` because, unlike pip-audit, it supports that flag natively.
+exception explicit and reviewable in the diff.
 
-Trivy is installed from a **pinned release tarball** (the same pattern gitleaks
-uses) rather than from an action. It is currently non-blocking: the pinned asset
-URL could not be verified from the environment the workflow was authored in.
-Once a CI run shows the install step succeeding, drop the `continue-on-error`
-flags on both Trivy steps to make it blocking.
+Trivy is **not** wired up, after two attempts that both failed for the same
+reason — the environment this workflow was authored in cannot verify a
+third-party GitHub release:
+
+1. `aquasecurity/trivy-action` pinned to a tag that did not resolve. That fails
+   at job set-up, where `continue-on-error` cannot catch it.
+2. A pinned release tarball, following the gitleaks pattern, returned `404`.
+   The correct version and asset name could not be checked beforehand.
+
+A `continue-on-error` Trivy step was briefly in place and has been removed on
+purpose: it reported `success` while scanning nothing, which is worse than an
+absent scanner because it reads as coverage. Dependency CVEs are genuinely
+gated by pip-audit; adding Trivy on top is a one-step change from a machine
+with open network access, and the snippet is in `HUMAN_ACTION_REQUIRED.md`.
 
 Still outstanding for a later release: **SBOM generation** and **signed, pinned
 container base images**.

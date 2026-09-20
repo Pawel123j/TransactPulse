@@ -66,18 +66,42 @@ so the published README never shows broken images.
 
 ---
 
-## 3. Promote the Trivy scan to blocking
+## 3. Add the Trivy scan (optional, ~5 minutes)
 
-The `security` job in `.github/workflows/ci.yml` installs Trivy from a pinned
-release tarball, but the asset URL could not be verified offline, so both Trivy
-steps carry `continue-on-error: true`.
+`pip-audit` already blocks on Python dependency CVEs. Trivy would add a second,
+independent vulnerability database plus container-image coverage. It is not
+wired up because this workflow was authored in an environment whose egress
+policy blocks GitHub Releases for third-party repositories, so no version or
+asset name could be verified — and two guesses both failed. See `SECURITY.md`.
 
-After the first CI run on `main`:
+From a machine with open network access:
 
-1. Open the `security` job log and check the **Install Trivy (pinned)** step.
-2. If it printed a version, delete the two `continue-on-error: true` lines from
-   the Trivy steps and update the table in `SECURITY.md` to mark Trivy blocking.
-3. If it 404'd, bump `TRIVY_VERSION` to a release that exists and repeat.
+```bash
+# 1. Find a real release and its Linux asset name
+curl -s https://api.github.com/repos/aquasecurity/trivy/releases/latest \
+  | grep -E '"(tag_name|name)":' | grep -iE 'tag_name|linux'
+```
+
+Then add to the `security` job in `.github/workflows/ci.yml`, after the
+pip-audit step, substituting the version and asset name you just confirmed:
+
+```yaml
+      - name: Install Trivy (pinned)
+        run: |
+          curl -sSfL -o /tmp/trivy.tar.gz \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/<CONFIRMED_ASSET_NAME>"
+          tar -xzf /tmp/trivy.tar.gz -C /tmp trivy
+          /tmp/trivy --version
+        env:
+          TRIVY_VERSION: <CONFIRMED_VERSION>
+      - name: Trivy (dependency CVEs) — blocking
+        run: |
+          /tmp/trivy fs . --scanners vuln --severity HIGH,CRITICAL \
+            --ignore-unfixed --exit-code 1 --no-progress
+```
+
+Do **not** add it with `continue-on-error`. A scanner that reports success
+without scanning is worse than no scanner.
 
 ---
 

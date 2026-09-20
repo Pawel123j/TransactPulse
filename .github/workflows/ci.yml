@@ -107,26 +107,22 @@ jobs:
             echo "::endgroup::"
           done
 
-      # Trivy adds filesystem/IaC coverage on top of pip-audit. It is installed
-      # from a pinned release tarball — the same pattern gitleaks uses above, so
-      # no third-party action resolution can break job set-up. It is
-      # non-blocking for now because the pinned asset URL could not be verified
-      # from the authoring environment; promote it to blocking once a run proves
-      # the download works (see SECURITY.md).
-      - name: Install Trivy (pinned)
-        id: trivy_install
-        continue-on-error: true
-        run: |
-          curl -sSfL -o /tmp/trivy.tar.gz \
-            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
-          tar -xzf /tmp/trivy.tar.gz -C /tmp trivy
-          /tmp/trivy --version
-        env:
-          TRIVY_VERSION: 0.58.1
-      - name: Trivy (filesystem CVE scan) — advisory
-        if: steps.trivy_install.outcome == 'success'
-        continue-on-error: true
-        run: /tmp/trivy fs . --scanners vuln,misconfig --severity HIGH,CRITICAL --ignore-unfixed --no-progress
+      # Trivy is NOT wired up here, and that is a deliberate call rather than an
+      # oversight. Two attempts failed for the same underlying reason:
+      #
+      #   1. `aquasecurity/trivy-action` pinned to a tag that did not resolve,
+      #      failing at job set-up where continue-on-error cannot catch it.
+      #   2. A pinned release tarball — the gitleaks pattern — 404'd, because
+      #      the correct version/asset name cannot be verified from an
+      #      environment whose egress policy blocks GitHub Releases for
+      #      third-party repositories.
+      #
+      # A `continue-on-error` Trivy step is worse than no Trivy step: it reads
+      # as coverage in the job name while scanning nothing. pip-audit above is
+      # the real, blocking dependency gate.
+      #
+      # Adding Trivy takes one step from a machine with open network access —
+      # the exact snippet is in HUMAN_ACTION_REQUIRED.md.
 
   docker-build:
     name: Validate Docker builds
