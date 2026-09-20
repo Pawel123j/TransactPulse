@@ -1,7 +1,11 @@
 """``medallion_pipeline`` — orchestrates the batch path of the lakehouse.
 
 Flow: **silver** (cleanse/dedup + DQ report) → **data-quality gate** →
-**gold aggregates** → **fraud scoring** → **drift**.
+**gold aggregates** → **fraud scoring** → **drift** → **retraining gate**.
+
+The retraining gate closes the loop: when PSI crosses the ``significant`` band
+it triggers the ``train_fraud_model`` DAG, whose artifact the scoring step reads
+on the next run.
 
 Each Spark step runs as a ``DockerOperator`` launching the ``transactpulse/streaming``
 image on the ``transactpulse`` network; the gate runs the same image with a
@@ -16,8 +20,13 @@ import os
 from datetime import datetime, timedelta
 
 from airflow import DAG
+from airflow.operators.empty import EmptyOperator
+from airflow.operators.python import BranchPythonOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.providers.docker.operators.docker import DockerOperator
 from docker.types import Mount
+
+from lakehouse.retraining import verdict_to_task_id
 
 logger = logging.getLogger("transactpulse.dag")
 
@@ -119,7 +128,51 @@ with DAG(
     fraud_scoring = _spark_task(dag, "fraud_scoring", gold, "--step", "scoring")
     drift = _spark_task(dag, "drift", gold, "--step", "drift")
 
+    # The Airflow containers do not mount ``tp-reports``, so the decision is made
+    # inside the jobs image and returned as the last line of stdout, which
+    # ``do_xcom_push`` publishes as this task's XCom value.
+    retrain_gate = DockerOperator(
+        task_id="retrain_gate",
+        image=IMAGE,
+        entrypoint="python3",
+        command=["-m", "lakehouse.retrain_gate", "--report", "/reports/drift_report.json"],
+        environment=JOB_ENV,
+        network_mode=NETWORK,
+        mounts=MOUNTS,
+        auto_remove="success",
+        mount_tmp_dir=False,
+        do_xcom_push=True,
+    )
+
+    def _choose_branch(**context: object) -> str:
+        """Map the gate's verdict onto the next task.
+
+        The mapping itself lives in ``lakehouse.retraining`` so it is testable
+        without installing Airflow; this stays a thin adapter over XCom.
+        """
+        ti = context["ti"]
+        raw = ti.xcom_pull(task_ids="retrain_gate")
+        task_id = verdict_to_task_id(raw if isinstance(raw, str) else None)
+        logger.info("Werdykt bramki retreningu: %r -> %s", raw, task_id)
+        return task_id
+
+    decide_retraining_branch = BranchPythonOperator(
+        task_id="decide_retraining",
+        python_callable=_choose_branch,
+    )
+
+    trigger_retraining = TriggerDagRunOperator(
+        task_id="trigger_retraining",
+        trigger_dag_id="train_fraud_model",
+        wait_for_completion=False,
+        reset_dag_run=True,
+    )
+
+    skip_retraining = EmptyOperator(task_id="skip_retraining")
+
     silver >> data_quality_gate
     data_quality_gate >> gold_aggregates
     data_quality_gate >> fraud_scoring
     fraud_scoring >> drift
+    drift >> retrain_gate >> decide_retraining_branch
+    decide_retraining_branch >> [trigger_retraining, skip_retraining]
