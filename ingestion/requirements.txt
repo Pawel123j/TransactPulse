@@ -1,0 +1,3 @@
+# Runtime dependencies for the ingestion (transaction generator + Kafka producer).
+faker>=24,<26
+confluent-kafka>=2.3,<3

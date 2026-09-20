@@ -1,0 +1,71 @@
+# Dependabot keeps the dependency CVE surface small between releases.
+#
+# The `security` CI job (pip-audit) is the blocking gate; Dependabot is the
+# mechanism that actually lands the fixes, so the gate stays satisfiable.
+version: 2
+
+updates:
+  # ---- Python ----------------------------------------------------------
+  # Each module pins its own runtime deps; the root holds the dev/test set.
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      dev-tooling:
+        patterns: ["pytest*", "ruff", "pip-audit"]
+
+  - package-ecosystem: pip
+    directory: "/ingestion"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: pip
+    directory: "/lakehouse"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: pip
+    directory: "/streaming"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: pip
+    directory: "/dashboard"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(deps)"
+
+  # ---- GitHub Actions --------------------------------------------------
+  # Action versions are part of the supply chain too.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci(deps)"
+
+  # ---- Container base images -------------------------------------------
+  - package-ecosystem: docker
+    directory: "/streaming"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: docker
+    directory: "/dashboard"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(deps)"

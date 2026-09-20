@@ -1,0 +1,46 @@
+{
+  "kind": "sklearn",
+  "estimator": "GradientBoostingClassifier",
+  "feature_names": [
+    "log_amount_pln",
+    "hour",
+    "is_night",
+    "is_online",
+    "is_atm",
+    "is_high_risk_category",
+    "is_foreign"
+  ],
+  "threshold": 0.5,
+  "trained_at": "2026-06-13T20:33:33+00:00",
+  "n_samples": 40000,
+  "n_fraud": 785,
+  "roc_auc": 0.8012,
+  "reference_quantiles": {
+    "fraud_score": [
+      0.001408,
+      0.00287,
+      0.003104,
+      0.004602,
+      0.008811,
+      0.011195,
+      0.013135,
+      0.017211,
+      0.026863,
+      0.04268,
+      1.0
+    ],
+    "amount_pln": [
+      0.11,
+      7.0,
+      13.83,
+      22.357,
+      33.626,
+      48.945,
+      70.73,
+      104.943,
+      161.382,
+      290.774,
+      15257.09
+    ]
+  }
+}

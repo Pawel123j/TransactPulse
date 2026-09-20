@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install "ruff>=0.4,<1.0"
+      - name: ruff check
+        run: ruff check .
+      - name: ruff format --check
+        run: ruff format --check .
+
+  test:
+    name: Unit & integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Run tests
+        run: pytest -q
+
+  spark-tests:
+    name: Spark transformation tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17" # Spark 3.5 supports Java 8/11/17.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dev + Spark dependencies
+        run: pip install -r requirements-dev.txt -r requirements-spark.txt
+      # TP_REQUIRE_SPARK=1 turns a missing PySpark into a hard failure, so these
+      # tests can never silently skip here (see tests/spark_support.py).
+      - name: Run Spark tests
+        env:
+          TP_REQUIRE_SPARK: "1"
+        run: |
+          pytest -q -rs \
+            tests/test_bronze_transform.py \
+            tests/test_silver_transform.py \
+            tests/test_gold_aggregates.py
+
+  security:
+    name: Security checks (bandit, gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks scans the full history
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install bandit
+        run: pip install "bandit[toml]>=1.7,<2"
+      - name: Bandit (Python SAST) — blocking
+        run: bandit -c pyproject.toml -r analytics dashboard ingestion lakehouse orchestration streaming
+      - name: Install gitleaks
+        run: |
+          curl -sSL -o /tmp/gitleaks.tar.gz \
+            https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+        env:
+          GITLEAKS_VERSION: 8.21.2
+      - name: Gitleaks (secret scanning) — blocking
+        run: /tmp/gitleaks dir . --no-banner --redact
+
+      # ---- Dependency CVE gate -------------------------------------------
+      # pip-audit is the blocking dependency gate: it installs from PyPI (no
+      # third-party action, no unverified image tag) and resolves every
+      # requirements file in the repo against the Python advisory database.
+      #
+      # If an advisory with no released fix ever lands here, do NOT drop the
+      # gate — add `--ignore-vuln <ID>` below with a one-line justification, so
+      # the exception is explicit and reviewable.
+      - name: Install pip-audit
+        run: pip install "pip-audit>=2.7,<3"
+      - name: pip-audit (dependency CVEs) — blocking
+        run: |
+          for req in requirements-dev.txt \
+                     ingestion/requirements.txt \
+                     lakehouse/requirements.txt \
+                     streaming/requirements.txt \
+                     dashboard/requirements.txt; do
+            echo "::group::pip-audit $req"
+            pip-audit -r "$req" --progress-spinner off
+            echo "::endgroup::"
+          done
+
+      # Trivy adds filesystem/IaC coverage on top of pip-audit. It is installed
+      # from a pinned release tarball — the same pattern gitleaks uses above, so
+      # no third-party action resolution can break job set-up. It is
+      # non-blocking for now because the pinned asset URL could not be verified
+      # from the authoring environment; promote it to blocking once a run proves
+      # the download works (see SECURITY.md).
+      - name: Install Trivy (pinned)
+        id: trivy_install
+        continue-on-error: true
+        run: |
+          curl -sSfL -o /tmp/trivy.tar.gz \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          tar -xzf /tmp/trivy.tar.gz -C /tmp trivy
+          /tmp/trivy --version
+        env:
+          TRIVY_VERSION: 0.58.1
+      - name: Trivy (filesystem CVE scan) — advisory
+        if: steps.trivy_install.outcome == 'success'
+        continue-on-error: true
+        run: /tmp/trivy fs . --scanners vuln,misconfig --severity HIGH,CRITICAL --ignore-unfixed --no-progress
+
+  docker-build:
+    name: Validate Docker builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate compose files
+        run: |
+          docker compose -f docker-compose.yml config -q
+          docker compose -f infra/docker-compose.yml config -q
+          docker compose -f orchestration/docker-compose.yml config -q
+      - name: Build jobs image (Spark + Delta + ML)
+        run: docker build -f streaming/Dockerfile -t transactpulse/streaming:ci .
+      - name: Build dashboard image
+        run: docker build -f dashboard/Dockerfile -t transactpulse/dashboard:ci .

@@ -1,0 +1,12 @@
+# PySpark test dependencies (used by the CI `spark-tests` job and for running the
+# Spark transformation tests locally). Kept separate from requirements-dev.txt so
+# the fast unit suite stays a lightweight install.
+#
+#   pip install -r requirements-dev.txt -r requirements-spark.txt
+#   TP_REQUIRE_SPARK=1 pytest tests/test_bronze_transform.py \
+#       tests/test_silver_transform.py tests/test_gold_aggregates.py
+#
+# Requires a JDK (Java 17 is what CI uses and what Spark 3.5 supports).
+pyspark>=3.5,<3.6
+delta-spark>=3.2,<3.3
+pyarrow>=14
