@@ -35,15 +35,34 @@ why it is safe in this context:
 | `B108` hardcoded `/tmp` path | `orchestration/dags/medallion_pipeline.py` | Container-internal Ivy cache path backed by a named Docker volume, not host `/tmp`. |
 | `B608` SQL built from a string | `analytics/duckdb_query.py` | `CREATE VIEW` cannot take bind parameters; the view name comes from a module constant and the bucket is validated against a strict allowlist regex before interpolation. |
 
-**Dependency/CVE scanning is a v1.1 item, not part of v1.0.0.** Adding Trivy
-would mean running it from an unpinned third-party action or an unverified image
-tag — an unacceptable trade in the very job that is meant to be the supply-chain
-gate, and a source of CI flakiness (the advisory feed changes daily, so a
-blocking gate turns untouched commits red). v1.1 adds it properly: a pinned
-Trivy release, SBOM generation and Dependabot.
+### Dependency CVE scanning
 
-Nothing else compensates for this gap today — dependency CVEs in this project's
-Python and container dependencies are currently **unmonitored**.
+Dependency CVEs **are** gated in CI as of v1.0.1:
+
+| Tool | Scope | Blocking? |
+| ---- | ----- | --------- |
+| `pip-audit` | every `requirements*.txt` in the repo, resolved against the Python advisory database | **Yes** |
+| Trivy `fs` | filesystem vulnerabilities and IaC misconfiguration | No — advisory only, see below |
+| Dependabot | weekly PRs for pip, GitHub Actions and Docker base images | n/a |
+
+`pip-audit` is the blocking gate because it installs from PyPI: no third-party
+action has to resolve at job set-up time, which is what broke the earlier Trivy
+attempt. All five requirements files are currently clean.
+
+The advisory feed moves daily, so an advisory with no released fix can appear
+against an untouched commit. The answer is **not** to weaken the gate: add
+`--ignore-vuln <ID>` to the step with a one-line justification, which keeps the
+exception explicit and reviewable in the diff. The Trivy scan runs with
+`--ignore-unfixed` because, unlike pip-audit, it supports that flag natively.
+
+Trivy is installed from a **pinned release tarball** (the same pattern gitleaks
+uses) rather than from an action. It is currently non-blocking: the pinned asset
+URL could not be verified from the environment the workflow was authored in.
+Once a CI run shows the install step succeeding, drop the `continue-on-error`
+flags on both Trivy steps to make it blocking.
+
+Still outstanding for a later release: **SBOM generation** and **signed, pinned
+container base images**.
 
 ---
 
