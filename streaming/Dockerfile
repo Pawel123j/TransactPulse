@@ -1,6 +1,6 @@
 # Bronze streaming job image — Spark 3.5 + Delta + Kafka + S3A (hadoop-aws).
 # Build context is the repository root (see infra/docker-compose.yml).
-FROM apache/spark:3.5.1
+FROM apache/spark:4.2.0
 
 USER root
 WORKDIR /app
