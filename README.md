@@ -15,6 +15,14 @@
 
 ---
 
+## Case study
+
+[`docs/CASE_STUDY.md`](docs/CASE_STUDY.md) — the engineering decisions behind
+this system, written to be discussed rather than skimmed: why Delta over plain
+Parquet, why the data-quality gate blocks instead of warning, why the drift
+policy treats a missing reference as a monitoring gap rather than a healthy
+signal, and the bugs that survived a green test suite.
+
 ## Table of contents
 
 - [What is this?](#what-is-this)
