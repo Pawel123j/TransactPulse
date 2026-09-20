@@ -1,8 +1,9 @@
 # Development & test dependencies (shared across modules).
 -r ingestion/requirements.txt
 
-pytest>=8,<9
+pytest>=9.0.3,<10      # >=9.0.3 fixes PYSEC-2026-1845
 ruff>=0.4,<1.0
+pip-audit>=2.7,<3      # dependency CVE gate (see .github/workflows/ci.yml)
 
 # Pure-Python ML/quality/analytics tests (Spark tests skip without pyspark).
 pandas>=2.0,<3.0
