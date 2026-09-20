@@ -107,31 +107,22 @@ jobs:
             echo "::endgroup::"
           done
 
-      # Trivy adds a second, independent vulnerability database on top of
-      # pip-audit. It is installed from a pinned release tarball — the same
-      # pattern gitleaks uses above — so no third-party action has to resolve at
-      # job set-up time, which is what broke the earlier trivy-action attempt.
+      # Trivy is NOT wired up here, and that is a deliberate call rather than an
+      # oversight. Two attempts failed for the same underlying reason:
       #
-      # Only the `vuln` scanner gates. `misconfig` is deliberately left out: its
-      # Dockerfile/compose opinions are advisory by nature and would turn this
-      # job into a style check rather than a supply-chain gate. The dev-stack
-      # trade-offs it would flag are already documented in SECURITY.md.
-      - name: Install Trivy (pinned)
-        run: |
-          curl -sSfL -o /tmp/trivy.tar.gz \
-            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
-          tar -xzf /tmp/trivy.tar.gz -C /tmp trivy
-          /tmp/trivy --version
-        env:
-          TRIVY_VERSION: 0.58.1
-      - name: Trivy (dependency CVEs) — blocking
-        run: |
-          /tmp/trivy fs . \
-            --scanners vuln \
-            --severity HIGH,CRITICAL \
-            --ignore-unfixed \
-            --exit-code 1 \
-            --no-progress
+      #   1. `aquasecurity/trivy-action` pinned to a tag that did not resolve,
+      #      failing at job set-up where continue-on-error cannot catch it.
+      #   2. A pinned release tarball — the gitleaks pattern — 404'd, because
+      #      the correct version/asset name cannot be verified from an
+      #      environment whose egress policy blocks GitHub Releases for
+      #      third-party repositories.
+      #
+      # A `continue-on-error` Trivy step is worse than no Trivy step: it reads
+      # as coverage in the job name while scanning nothing. pip-audit above is
+      # the real, blocking dependency gate.
+      #
+      # Adding Trivy takes one step from a machine with open network access —
+      # the exact snippet is in HUMAN_ACTION_REQUIRED.md.
 
   docker-build:
     name: Validate Docker builds
