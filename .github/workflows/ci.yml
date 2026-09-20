@@ -107,15 +107,16 @@ jobs:
             echo "::endgroup::"
           done
 
-      # Trivy adds filesystem/IaC coverage on top of pip-audit. It is installed
-      # from a pinned release tarball — the same pattern gitleaks uses above, so
-      # no third-party action resolution can break job set-up. It is
-      # non-blocking for now because the pinned asset URL could not be verified
-      # from the authoring environment; promote it to blocking once a run proves
-      # the download works (see SECURITY.md).
+      # Trivy adds a second, independent vulnerability database on top of
+      # pip-audit. It is installed from a pinned release tarball — the same
+      # pattern gitleaks uses above — so no third-party action has to resolve at
+      # job set-up time, which is what broke the earlier trivy-action attempt.
+      #
+      # Only the `vuln` scanner gates. `misconfig` is deliberately left out: its
+      # Dockerfile/compose opinions are advisory by nature and would turn this
+      # job into a style check rather than a supply-chain gate. The dev-stack
+      # trade-offs it would flag are already documented in SECURITY.md.
       - name: Install Trivy (pinned)
-        id: trivy_install
-        continue-on-error: true
         run: |
           curl -sSfL -o /tmp/trivy.tar.gz \
             "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
@@ -123,10 +124,14 @@ jobs:
           /tmp/trivy --version
         env:
           TRIVY_VERSION: 0.58.1
-      - name: Trivy (filesystem CVE scan) — advisory
-        if: steps.trivy_install.outcome == 'success'
-        continue-on-error: true
-        run: /tmp/trivy fs . --scanners vuln,misconfig --severity HIGH,CRITICAL --ignore-unfixed --no-progress
+      - name: Trivy (dependency CVEs) — blocking
+        run: |
+          /tmp/trivy fs . \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --no-progress
 
   docker-build:
     name: Validate Docker builds

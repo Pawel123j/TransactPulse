@@ -66,22 +66,7 @@ so the published README never shows broken images.
 
 ---
 
-## 3. Promote the Trivy scan to blocking
-
-The `security` job in `.github/workflows/ci.yml` installs Trivy from a pinned
-release tarball, but the asset URL could not be verified offline, so both Trivy
-steps carry `continue-on-error: true`.
-
-After the first CI run on `main`:
-
-1. Open the `security` job log and check the **Install Trivy (pinned)** step.
-2. If it printed a version, delete the two `continue-on-error: true` lines from
-   the Trivy steps and update the table in `SECURITY.md` to mark Trivy blocking.
-3. If it 404'd, bump `TRIVY_VERSION` to a release that exists and repeat.
-
----
-
-## 4. Optional: publish the dashboard
+## 3. Optional: publish the dashboard
 
 The Streamlit dashboard reads the gold layer over DuckDB and needs the lakehouse
 to be reachable, so it cannot be deployed as a static site. If a public demo is

@@ -42,7 +42,7 @@ Dependency CVEs **are** gated in CI as of v1.0.1:
 | Tool | Scope | Blocking? |
 | ---- | ----- | --------- |
 | `pip-audit` | every `requirements*.txt` in the repo, resolved against the Python advisory database | **Yes** |
-| Trivy `fs` | filesystem vulnerabilities and IaC misconfiguration | No — advisory only, see below |
+| Trivy `fs` | a second, independent vulnerability database over the same dependency files | **Yes** |
 | Dependabot | weekly PRs for pip, GitHub Actions and Docker base images | n/a |
 
 `pip-audit` is the blocking gate because it installs from PyPI: no third-party
@@ -56,10 +56,11 @@ exception explicit and reviewable in the diff. The Trivy scan runs with
 `--ignore-unfixed` because, unlike pip-audit, it supports that flag natively.
 
 Trivy is installed from a **pinned release tarball** (the same pattern gitleaks
-uses) rather than from an action. It is currently non-blocking: the pinned asset
-URL could not be verified from the environment the workflow was authored in.
-Once a CI run shows the install step succeeding, drop the `continue-on-error`
-flags on both Trivy steps to make it blocking.
+uses) rather than from an action, and gates on `HIGH`/`CRITICAL` findings that
+have a fix. Only its `vuln` scanner is wired up — `misconfig` is deliberately
+left out, because its Dockerfile and compose opinions would turn the
+supply-chain gate into a style check, and the dev-stack trade-offs it flags are
+already documented below.
 
 Still outstanding for a later release: **SBOM generation** and **signed, pinned
 container base images**.
