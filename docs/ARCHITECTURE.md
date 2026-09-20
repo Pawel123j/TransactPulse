@@ -28,6 +28,7 @@ flowchart TB
     subgraph ML["5 · ML"]
         MODEL["Fraud model<br/>(sklearn, pandas_udf)"]
         DRIFT["Drift PSI/KS"]
+        GATE{"Retraining gate<br/>PSI ≥ 0.2?"}
     end
     subgraph SERVE["7 · Query & serving"]
         DUCK["DuckDB"]
@@ -43,6 +44,8 @@ flowchart TB
     SILVER --> GOLD
     MODEL -. batch scoring .-> GOLD
     GOLD --> DRIFT
+    DRIFT --> GATE
+    GATE -->|PSI significant| MODEL
     GOLD --> DUCK --> DASH
 
     AIR -. triggers .-> SILVER
@@ -88,9 +91,37 @@ training reference is reported (ADR 0006).
 
 ### 6 · Orchestration (`orchestration/`)
 **Airflow** (`medallion_pipeline`, LocalExecutor) runs silver → DQ gate → gold
-aggregates → scoring → drift as `DockerOperator` tasks on the jobs image. Tasks are
-idempotent and restartable, with retries, an alert callback, and a blocking
-data-quality gate (ADR 0007). A separate `train_fraud_model` DAG retrains weekly.
+aggregates → scoring → drift → retraining gate as `DockerOperator` tasks on the
+jobs image. Tasks are idempotent and restartable, with retries, an alert
+callback, and a blocking data-quality gate (ADR 0007). A separate
+`train_fraud_model` DAG retrains weekly, and the gate can trigger it on demand.
+
+#### Closing the drift loop
+
+```
+drift  →  retrain_gate  →  decide_retraining  ┬→ trigger_retraining → train_fraud_model
+                                              └→ skip_retraining
+```
+
+The gate runs `lakehouse.retrain_gate` in the jobs image, because the Airflow
+containers do not mount the `tp-reports` volume where `drift_report.json` lands.
+Its verdict travels back as the task's XCom value (the last line of stdout) and
+a `BranchPythonOperator` maps it onto the next task.
+
+The policy itself (`lakehouse/retraining.py`) is a pure function over the drift
+report, so it is unit-tested without Airflow. Two guards matter more than the
+threshold:
+
+- **A missing training reference is not "stable".** `population_stability_index`
+  returns `0.0` when either side is empty and `classify_psi(0.0)` is `"stable"`,
+  so a model that never received a reference produces a report identical to a
+  perfectly calibrated one. The policy reports that as *not comparable* — a gap
+  in monitoring, not a clean bill of health.
+- **Too few scored rows is not evidence.** PSI computed over a dozen live values
+  against a 50k reference is arithmetic, not a signal.
+
+Anything other than an explicit `RETRAIN` verdict skips retraining: an
+unreadable signal is a reason to stay put, not to spend an hour of compute.
 
 ### 7 · Query & serving (`analytics/`, `dashboard/`)
 **DuckDB** queries the gold Delta tables directly over MinIO (`httpfs` + `delta`),
