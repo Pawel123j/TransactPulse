@@ -84,10 +84,49 @@ jobs:
           GITLEAKS_VERSION: 8.21.2
       - name: Gitleaks (secret scanning) — blocking
         run: /tmp/gitleaks dir . --no-banner --redact
-      # A Trivy dependency/CVE scan is planned for v1.1 (see SECURITY.md). It is
-      # deliberately not wired up here yet: it would have to run either from an
-      # unpinned third-party action or from an unverified image tag, and neither
-      # belongs in the job that is supposed to be the supply-chain gate.
+
+      # ---- Dependency CVE gate -------------------------------------------
+      # pip-audit is the blocking dependency gate: it installs from PyPI (no
+      # third-party action, no unverified image tag) and resolves every
+      # requirements file in the repo against the Python advisory database.
+      #
+      # If an advisory with no released fix ever lands here, do NOT drop the
+      # gate — add `--ignore-vuln <ID>` below with a one-line justification, so
+      # the exception is explicit and reviewable.
+      - name: Install pip-audit
+        run: pip install "pip-audit>=2.7,<3"
+      - name: pip-audit (dependency CVEs) — blocking
+        run: |
+          for req in requirements-dev.txt \
+                     ingestion/requirements.txt \
+                     lakehouse/requirements.txt \
+                     streaming/requirements.txt \
+                     dashboard/requirements.txt; do
+            echo "::group::pip-audit $req"
+            pip-audit -r "$req" --progress-spinner off
+            echo "::endgroup::"
+          done
+
+      # Trivy adds filesystem/IaC coverage on top of pip-audit. It is installed
+      # from a pinned release tarball — the same pattern gitleaks uses above, so
+      # no third-party action resolution can break job set-up. It is
+      # non-blocking for now because the pinned asset URL could not be verified
+      # from the authoring environment; promote it to blocking once a run proves
+      # the download works (see SECURITY.md).
+      - name: Install Trivy (pinned)
+        id: trivy_install
+        continue-on-error: true
+        run: |
+          curl -sSfL -o /tmp/trivy.tar.gz \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          tar -xzf /tmp/trivy.tar.gz -C /tmp trivy
+          /tmp/trivy --version
+        env:
+          TRIVY_VERSION: 0.58.1
+      - name: Trivy (filesystem CVE scan) — advisory
+        if: steps.trivy_install.outcome == 'success'
+        continue-on-error: true
+        run: /tmp/trivy fs . --scanners vuln,misconfig --severity HIGH,CRITICAL --ignore-unfixed --no-progress
 
   docker-build:
     name: Validate Docker builds
