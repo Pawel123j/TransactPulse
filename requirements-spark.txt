@@ -7,6 +7,6 @@
 #       tests/test_silver_transform.py tests/test_gold_aggregates.py
 #
 # Requires a JDK (Java 17 is what CI uses and what Spark 3.5 supports).
-pyspark>=3.5,<3.6
+pyspark>=4.2.0,<4.3
 delta-spark>=3.2,<3.3
 pyarrow>=14
