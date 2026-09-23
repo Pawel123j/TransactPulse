@@ -1,5 +1,5 @@
 # Streamlit dashboard dependencies.
 streamlit>=1.64.0,<2
 duckdb>=0.10
-pandas>=2.0,<3.0
+pandas>=3.0.6,<4.0
 plotly>=5.18
