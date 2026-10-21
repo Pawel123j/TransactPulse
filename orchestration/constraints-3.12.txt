@@ -560,7 +560,7 @@ pure-sasl==0.6.2
 pure_eval==0.2.4
 py-spy==0.4.2
 pyOpenSSL==26.4.0
-pyarrow==25.0.1
+pyarrow==26.0.0
 pyasn1==0.6.4
 pyasn1_modules==0.4.2
 pybreaker==1.4.1
