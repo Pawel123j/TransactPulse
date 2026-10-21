@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from dashboard.data_access import (
     ISO2_TO_ISO3,
     KPI_SQL,
     VOLUME_BY_COUNTRY_SQL,
     DashboardConfig,
+    query_df,
     read_json_report,
 )
 from lakehouse.dq_rules import ALLOWED_COUNTRIES
@@ -43,3 +46,10 @@ def test_config_from_env(monkeypatch) -> None:
     config = DashboardConfig.from_env()
     assert config.reports_dir == "/tmp/reports"
     assert config.duckdb.bucket == "lh"
+
+
+def test_query_failure_is_not_reported_as_zero_transactions() -> None:
+    import duckdb
+
+    with duckdb.connect() as con, pytest.raises(duckdb.CatalogException):
+        query_df(con, KPI_SQL)

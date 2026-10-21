@@ -38,18 +38,17 @@ class DashboardConfig:
 def open_gold(config: DashboardConfig):
     """Open a DuckDB connection with the gold tables registered as views."""
     con = connect(config.duckdb)
-    register_gold_views(con, config.duckdb)
+    try:
+        register_gold_views(con, config.duckdb)
+    except Exception:
+        con.close()
+        raise
     return con
 
 
 def query_df(con, sql: str) -> pd.DataFrame:
-    """Run ``sql`` and return a DataFrame; empty DataFrame on any failure."""
-    import pandas as pd
-
-    try:
-        return con.execute(sql).fetchdf()
-    except Exception:  # noqa: BLE001 - dashboard must not crash on missing tables
-        return pd.DataFrame()
+    """Run SQL without disguising unavailable/corrupt storage as zero activity."""
+    return con.execute(sql).fetchdf()
 
 
 def read_json_report(path: str | Path) -> dict[str, Any] | None:

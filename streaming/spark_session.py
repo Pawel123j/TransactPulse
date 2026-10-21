@@ -10,6 +10,7 @@ from __future__ import annotations
 from pyspark.sql import SparkSession
 
 from streaming.config import BronzeConfig
+from streaming.s3_config import ssl_enabled
 
 
 def build_spark_session(config: BronzeConfig) -> SparkSession:
@@ -34,7 +35,7 @@ def build_spark_session(config: BronzeConfig) -> SparkSession:
         .config("spark.hadoop.fs.s3a.access.key", config.s3_access_key)
         .config("spark.hadoop.fs.s3a.secret.key", config.s3_secret_key)
         .config("spark.hadoop.fs.s3a.path.style.access", "true")
-        .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "false")
+        .config("spark.hadoop.fs.s3a.connection.ssl.enabled", ssl_enabled(config.s3_endpoint))
         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
         .config(
             "spark.hadoop.fs.s3a.aws.credentials.provider",

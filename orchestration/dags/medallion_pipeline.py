@@ -19,11 +19,11 @@ import logging
 import os
 from datetime import datetime, timedelta
 
-from airflow import DAG
-from airflow.operators.empty import EmptyOperator
-from airflow.operators.python import BranchPythonOperator
-from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.providers.docker.operators.docker import DockerOperator
+from airflow.providers.standard.operators.empty import EmptyOperator
+from airflow.providers.standard.operators.python import BranchPythonOperator
+from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.sdk import DAG
 from docker.types import Mount
 
 from lakehouse.retraining import verdict_to_task_id
@@ -35,14 +35,14 @@ NETWORK = os.getenv("TP_NETWORK", "transactpulse")
 
 # Delta + S3A jars (no Kafka needed for the batch path).
 PACKAGES = (
-    "io.delta:delta-spark_2.12:3.2.0,"
+    "io.delta:delta-spark_2.12:3.2.1,"
     "org.apache.hadoop:hadoop-aws:3.3.4,"
     "com.amazonaws:aws-java-sdk-bundle:1.12.262"
 )
 
 # Shared environment for the jobs (reports + model live on shared volumes).
 JOB_ENV = {
-    "S3_ENDPOINT": "http://minio:9000",
+    "S3_ENDPOINT": os.getenv("S3_ENDPOINT", "http://minio:9000"),
     "S3_ACCESS_KEY": os.getenv("MINIO_ROOT_USER", "minioadmin"),
     "S3_SECRET_KEY": os.getenv("MINIO_ROOT_PASSWORD", "minioadmin123"),
     "LAKEHOUSE_BUCKET": os.getenv("LAKEHOUSE_BUCKET", "lakehouse"),

@@ -59,12 +59,14 @@ def add_fraud_scores(
         threshold: Flag threshold; defaults to the model's own threshold.
     """
     from pyspark.sql import functions as F
-    from pyspark.sql.functions import pandas_udf
+    from pyspark.sql.functions import PandasUDFType, pandas_udf
     from pyspark.sql.types import DoubleType
 
     flag_threshold = threshold if threshold is not None else _get_model(model_path).threshold
 
-    @pandas_udf(DoubleType())
+    # Spark 3.5 cannot infer this contract from postponed pandas annotations
+    # imported only under TYPE_CHECKING. Specify the supported scalar UDF API.
+    @pandas_udf(DoubleType(), functionType=PandasUDFType.SCALAR)
     def _score_udf(batch: pd.DataFrame) -> pd.Series:  # struct -> Series
         return score_pandas(batch, _get_model(model_path))
 

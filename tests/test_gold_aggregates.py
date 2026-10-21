@@ -56,6 +56,17 @@ def test_daily_volume_by_country(spark):
     assert out["DE"]["total_volume_pln"] == 200.0
 
 
+def test_vectorized_scorer_executes_in_spark_worker(spark, tmp_path):
+    from lakehouse.ml.scoring import add_fraud_scores
+
+    scored = add_fraud_scores(_silver(spark), str(tmp_path / "missing.pkl"), 0.5)
+    rows = {row["transaction_id"]: row for row in scored.collect()}
+    assert len(rows) == 3
+    assert all(0 <= row["fraud_score"] <= 1 for row in rows.values())
+    assert rows["t2"]["fraud_score"] > rows["t1"]["fraud_score"]
+    assert all(row["fraud_flag"] == (row["fraud_score"] >= 0.5) for row in rows.values())
+
+
 def test_merchant_category_kpi(spark):
     out = {r["merchant_category"]: r for r in merchant_category_kpi(_silver(spark)).collect()}
     assert out["gambling"]["fraud_count"] == 1

@@ -1,7 +1,8 @@
 """DuckDB query runner over the gold Delta tables on MinIO (ADR 0008).
 
-Registers each gold table as a DuckDB view (via the ``delta`` + ``httpfs``
-extensions pointed at MinIO) and executes the statements in ``analytics/queries.sql``.
+Registers committed Delta snapshots through delta-rs/Arrow without downloading
+DuckDB extensions. ``DUCKDB_DELTA_BACKEND=extension`` retains the optional
+``delta``/``httpfs`` backend. Executes ``analytics/queries.sql``.
 The same connection path backs the Streamlit dashboard (Stage 8).
 """
 
@@ -12,6 +13,9 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlsplit
+
+from streaming.s3_config import ssl_enabled
 
 if TYPE_CHECKING:  # pragma: no cover
     import duckdb
@@ -59,6 +63,13 @@ class DuckDBConfig:
     s3_access_key: str = "minioadmin"
     s3_secret_key: str = "minioadmin123"
     bucket: str = "lakehouse"
+    backend: str = "arrow"
+
+    def __post_init__(self) -> None:
+        ssl_enabled(self.s3_endpoint)
+        _check_bucket(self.bucket)
+        if self.backend not in {"arrow", "extension"}:
+            raise ValueError("DUCKDB_DELTA_BACKEND must be arrow or extension")
 
     @classmethod
     def from_env(cls) -> DuckDBConfig:
@@ -68,12 +79,13 @@ class DuckDBConfig:
             s3_access_key=os.getenv("S3_ACCESS_KEY", d.s3_access_key),
             s3_secret_key=os.getenv("S3_SECRET_KEY", d.s3_secret_key),
             bucket=os.getenv("LAKEHOUSE_BUCKET", d.bucket),
+            backend=os.getenv("DUCKDB_DELTA_BACKEND", d.backend),
         )
 
     @property
     def s3_host(self) -> str:
         """Endpoint host:port without the URL scheme (what DuckDB expects)."""
-        return re.sub(r"^https?://", "", self.s3_endpoint)
+        return urlsplit(self.s3_endpoint).netloc
 
     @property
     def use_ssl(self) -> bool:
@@ -99,6 +111,11 @@ def connect(config: DuckDBConfig) -> duckdb.DuckDBPyConnection:
     import duckdb
 
     con = duckdb.connect()
+    if config.backend == "arrow":
+        # Delta-rs resolves a committed snapshot, including removes/checkpoints;
+        # DuckDB scans its Arrow dataset lazily with projection/filter pushdown.
+        # No runtime extension download or raw parquet wildcard scan is needed.
+        return con
     con.execute("INSTALL httpfs; LOAD httpfs;")
     con.execute("INSTALL delta; LOAD delta;")
     # DuckDB `SET` does not accept bind parameters, so the values are escaped.
@@ -122,6 +139,22 @@ def register_gold_views(con: duckdb.DuckDBPyConnection, config: DuckDBConfig) ->
     for table in GOLD_TABLES:
         name = _check_identifier(table, "gold table")
         location = f"s3://{bucket}/gold/{name}"
+        if config.backend == "arrow":
+            from deltalake import DeltaTable
+
+            snapshot = DeltaTable(
+                location,
+                storage_options={
+                    "AWS_ENDPOINT_URL": config.s3_endpoint,
+                    "AWS_ACCESS_KEY_ID": config.s3_access_key,
+                    "AWS_SECRET_ACCESS_KEY": config.s3_secret_key,
+                    "AWS_REGION": "us-east-1",
+                    "AWS_ALLOW_HTTP": str(not config.use_ssl).lower(),
+                    "AWS_VIRTUAL_HOSTED_STYLE_REQUEST": "false",
+                },
+            )
+            con.register(name, snapshot.to_pyarrow_dataset())
+            continue
         # Identifier and bucket are validated above; no user input reaches this SQL.
         view_sql = (
             f"CREATE OR REPLACE VIEW {name} "  # nosec B608

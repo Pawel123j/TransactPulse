@@ -11,6 +11,8 @@ Run locally::
 
 from __future__ import annotations
 
+import logging
+import traceback
 from pathlib import Path
 
 import plotly.express as px
@@ -31,12 +33,6 @@ from dashboard.data_access import (
 )
 
 st.set_page_config(page_title="TransactPulse", page_icon="💳", layout="wide")
-
-
-@st.cache_resource(show_spinner=False)
-def _connection():
-    config = DashboardConfig.from_env()
-    return open_gold(config), config
 
 
 def _has_rows(df) -> bool:
@@ -121,15 +117,17 @@ def render_fraud(con) -> None:
     with left:
         st.markdown("**Top ML-scored transactions (flagged)**")
         scored = query_df(con, TOP_SCORED_SQL)
-        st.dataframe(scored, use_container_width=True, height=320) if _has_rows(
-            scored
-        ) else st.info("No scored transactions yet.")
+        if _has_rows(scored):
+            st.dataframe(scored, width="stretch", height=320)
+        else:
+            st.info("No scored transactions yet.")
     with right:
         st.markdown("**Strongest rule-based signals**")
         signals = query_df(con, TOP_SIGNALS_SQL)
-        st.dataframe(signals, use_container_width=True, height=320) if _has_rows(
-            signals
-        ) else st.info("No fraud signals yet.")
+        if _has_rows(signals):
+            st.dataframe(signals, width="stretch", height=320)
+        else:
+            st.info("No fraud signals yet.")
 
 
 def render_quality(config: DashboardConfig) -> None:
@@ -161,20 +159,38 @@ def render_drift(config: DashboardConfig) -> None:
 
 def main() -> None:
     render_header()
-    con, config = _connection()
-
-    render_kpis(con)
-    st.divider()
-    render_volume(con)
-    render_trend(con)
-    st.divider()
-    render_fraud(con)
-    st.divider()
-    q, d = st.columns(2)
-    with q:
-        render_quality(config)
-    with d:
-        render_drift(config)
+    st.button("Refresh pipeline data", key="refresh_pipeline")
+    config = DashboardConfig.from_env()
+    con = None
+    try:
+        # Each rerun obtains current committed Delta snapshots. A cached Arrow
+        # dataset would remain at its old version even after a successful DAG.
+        con = open_gold(config)
+        render_kpis(con)
+        st.divider()
+        render_volume(con)
+        render_trend(con)
+        st.divider()
+        render_fraud(con)
+        st.divider()
+        q, d = st.columns(2)
+        with q:
+            render_quality(config)
+        with d:
+            render_drift(config)
+    except Exception as error:
+        # Avoid leaking endpoint credentials from transport exception strings.
+        logging.getLogger(__name__).error(
+            "Dashboard unavailable: %s in %s",
+            type(error).__name__,
+            " -> ".join(frame.name for frame in traceback.extract_tb(error.__traceback__)),
+        )
+        st.error(
+            "Pipeline data is unavailable. Check storage and the latest pipeline run, then refresh."
+        )
+    finally:
+        if con is not None:
+            con.close()
 
 
 # Streamlit re-runs the whole script on every interaction.

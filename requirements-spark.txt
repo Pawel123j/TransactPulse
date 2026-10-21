@@ -10,3 +10,6 @@
 pyspark>=3.5,<3.6
 delta-spark>=3.2,<3.3
 pyarrow>=14
+# Spark 3.5's pandas UDF version checks still import distutils. Python 3.12+
+# removed it from the stdlib; setuptools supplies the compatible implementation.
+setuptools>=78.1.1; python_version >= "3.12"

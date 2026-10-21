@@ -1,65 +1,27 @@
-# Orchestration — Airflow `medallion_pipeline`
+# Airflow orchestration
 
-Apache Airflow (LocalExecutor on Postgres) schedules the batch path. Spark steps
-run as **`DockerOperator`** tasks launching the `transactpulse/streaming` image on
-the `transactpulse` network; the data-quality gate runs the same image with a
-lightweight Python entrypoint. See [ADR 0007](../docs/adr/0007-airflow-vs-prefect.md).
+Airflow 3.3.2 (Python 3.12, LocalExecutor/Postgres) schedules Silver → quality gate → Gold aggregates/scoring → drift → retraining decision. Bronze remains the continuously running Kafka consumer; do not start another writer with the same checkpoint. Delta MERGE/overwrite keeps the batch path repeatable. Two retries and a failure callback log an `ALERT` after failure; no external notification service is configured.
 
-## DAGs
+The image installs pinned Docker/standard providers at build time and includes the `lakehouse` module needed during DAG import. API server, scheduler and DAG processor are separate Airflow 3 services. Both DAGs allow one active run. The Docker socket is mounted only into the scheduler, using a configured socket group. Socket access still grants host control: use only in a trusted, isolated development environment.
 
-| DAG                  | Schedule  | Purpose                                                  |
-| -------------------- | --------- | ------------------------------------------------------- |
-| `medallion_pipeline` | `@daily`  | silver → DQ gate → gold aggregates → scoring → drift     |
-| `train_fraud_model`  | `@weekly` | (re)train the baseline model to the `tp-models` volume   |
+## New isolated installation
 
-```mermaid
-flowchart LR
-    s[silver] --> g[data_quality_gate]
-    g --> a[gold_aggregates]
-    g --> sc[fraud_scoring]
-    sc --> d[drift]
+```sh
+python orchestration/init_local.py /absolute/new/private-settings
+export TP_AIRFLOW_ENV=/absolute/new/private-settings/airflow.env
+docker compose --env-file "$TP_AIRFLOW_ENV" -f infra/docker-compose.yml up -d --build
+docker compose --env-file "$TP_AIRFLOW_ENV" -f orchestration/docker-compose.yml up -d --build
 ```
 
-Tasks are **idempotent** (Delta MERGE / overwrite) and **restartable** — any task
-can be cleared and re-run. Each has `retries=2` and an on-failure alert callback.
-The **data-quality gate** fails the run (blocking gold) if the silver quality
-report has failing checks or the quarantine ratio is too high.
+The generator refuses an existing directory and creates mode-0600 settings. Obtain the local admin password from `passwords.json` privately; do not log or commit it. For existing volumes, retain existing DB credentials and back up metadata before an Airflow major upgrade. This is not an automatic migration of an existing deployment. The API/UI listens on loopback port 8088.
 
-## Run
+For a proxy CA, pass `--secret id=proxy_ca,src=...` to the Airflow/jobs/dashboard Docker builds. TLS verification remains enabled. `S3_ENDPOINT=https://...` preserves HTTPS in tasks; configure trusted certificates in the Spark JVM and analytics runtime. Local Kafka remains PLAINTEXT; this Compose is not a production TLS deployment.
 
-Prerequisites — infra up and the jobs image built:
+## Verification
 
-```bash
-docker compose -f infra/docker-compose.yml up -d --build
+```sh
+pip install -r orchestration/requirements.txt -c orchestration/constraints-3.12.txt pytest
+pytest -q tests/test_airflow_dags.py
 ```
 
-Start Airflow:
-
-```bash
-docker compose -f orchestration/docker-compose.yml up -d
-# UI: http://localhost:8088   (admin / admin)
-```
-
-Trigger the pipeline from the UI, or:
-
-```bash
-docker compose -f orchestration/docker-compose.yml exec airflow-scheduler \
-  airflow dags trigger medallion_pipeline
-```
-
-## How the tasks reach the data
-
-- Spark tasks join the external `transactpulse` network, so they resolve
-  `kafka:9092` / `minio:9000`.
-- Reports (`/reports`) and the model artifact (`/app/models`) live on the shared
-  named volumes `tp-reports` and `tp-models`, mounted into both the job containers
-  and the scheduler.
-- The Docker socket is mounted into Airflow so the `DockerOperator` can launch
-  task containers (the scheduler runs as root for socket access — a local-demo
-  trade-off, see ADR 0007).
-
-## Notes
-
-- `_PIP_ADDITIONAL_REQUIREMENTS` installs `apache-airflow-providers-docker` at
-  container start (first boot is slower).
-- The webserver is published on **8088** (8080 is taken by Kafka UI).
+Four tests passed with real Airflow: parsing/serialization, the quality gate dependency, retry/alert configuration, and XCom branch routing. Official 3.3.2 constraints were updated only for PyJWT 2.15.0 and urllib3 2.8.0 after five advisories were found; the installed environment audit is now clean. These tests do not execute scheduled Docker tasks. Full Compose and an actual scheduled DAG run remain unverified here because large images cannot fit the remaining workspace disk and the legacy MinIO image is unavailable. See [current evidence](../docs/STAGE3_VALIDATION.md).

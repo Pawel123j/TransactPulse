@@ -9,8 +9,8 @@ from __future__ import annotations
 import os
 from datetime import datetime, timedelta
 
-from airflow import DAG
 from airflow.providers.docker.operators.docker import DockerOperator
+from airflow.sdk import DAG
 from docker.types import Mount
 
 IMAGE = os.getenv("TP_JOBS_IMAGE", "transactpulse/streaming:latest")
@@ -23,6 +23,7 @@ with DAG(
     schedule="@weekly",
     start_date=datetime(2026, 1, 1),
     catchup=False,
+    max_active_runs=1,
     tags=["transactpulse", "ml"],
 ) as dag:
     DockerOperator(

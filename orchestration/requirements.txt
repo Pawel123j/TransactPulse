@@ -1,0 +1,4 @@
+# Validated with Python 3.12 and the matching official Airflow constraints.
+apache-airflow==3.3.2
+apache-airflow-providers-docker==4.5.9
+apache-airflow-providers-standard==1.19.0

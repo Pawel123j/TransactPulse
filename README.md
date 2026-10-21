@@ -1,3 +1,5 @@
+> Current setup and verification: [Stage 3 evidence and limits](docs/STAGE3_VALIDATION.md). Generate private Airflow settings as described in [orchestration](orchestration/README.md), then set `TP_AIRFLOW_ENV` to the generated `airflow.env` path before Compose commands. Existing database volumes require their existing credentials; do not regenerate credentials for them.
+
 # TransactPulse
 
 > **Real-Time Big Data Lakehouse for financial transactions.**
@@ -244,7 +246,7 @@ Train the real model (a scikit-learn `GradientBoostingClassifier`) either way:
 
 ```bash
 # A) inside the stack — the Airflow DAG writes to the shared tp-models volume
-docker compose exec airflow-scheduler airflow dags trigger train_fraud_model
+docker compose --env-file "$TP_AIRFLOW_ENV" exec airflow-scheduler airflow dags trigger train_fraud_model
 
 # B) locally — writes models/fraud_model.pkl next to the repo
 pip install -r requirements-dev.txt
@@ -299,7 +301,7 @@ Bring up the **entire stack** with one command:
 git clone https://github.com/Pawel123j/TransactPulse.git
 cd TransactPulse
 
-docker compose up -d --build
+docker compose --env-file "$TP_AIRFLOW_ENV" up -d --build
 ```
 
 This starts Kafka (KRaft) + Kafka UI, MinIO, the bronze Spark stream, a synthetic
@@ -308,14 +310,14 @@ transaction **generator**, Airflow, and the Streamlit **dashboard**.
 | Service          | URL                          | Login                      |
 | ---------------- | ---------------------------- | -------------------------- |
 | 📊 Dashboard      | http://localhost:8501        | —                          |
-| 🛠️ Airflow        | http://localhost:8088        | `admin` / `admin`          |
+| 🛠️ Airflow        | http://localhost:8088        | `admin` / generated private password          |
 | 📨 Kafka UI       | http://localhost:8080        | —                          |
 | 🪣 MinIO console  | http://localhost:9001        | `minioadmin` / `minioadmin123` |
 
 Then trigger the batch pipeline (or wait for the `@daily` schedule):
 
 ```bash
-docker compose exec airflow-scheduler airflow dags trigger medallion_pipeline
+docker compose --env-file "$TP_AIRFLOW_ENV" exec airflow-scheduler airflow dags trigger medallion_pipeline
 ```
 
 The generator feeds Kafka → bronze fills continuously; the DAG promotes
@@ -357,15 +359,15 @@ DuckDB. A non-zero exit code means the pipeline did not produce gold data.
 **1 · Start everything**
 
 ```bash
-docker compose up -d --build     # first boot is slow: image builds + Spark jars
-docker compose ps                # every service should be Up / healthy
+docker compose --env-file "$TP_AIRFLOW_ENV" up -d --build     # first boot is slow: image builds + Spark jars
+docker compose --env-file "$TP_AIRFLOW_ENV" ps                # every service should be Up / healthy
 ```
 
 **2 · Confirm the producer is emitting** — the `generator` service runs
 continuously; there is nothing extra to start.
 
 ```bash
-docker compose logs -f generator | head -30    # "produced N transactions ..."
+docker compose --env-file "$TP_AIRFLOW_ENV" logs -f generator | head -30    # "produced N transactions ..."
 ```
 
 Prefer a standalone burst instead of the long-running service?
@@ -380,14 +382,14 @@ pip install -r ingestion/requirements.txt
 
 **4 · MinIO console** → <http://localhost:9001> (`minioadmin` / `minioadmin123`)
 — bucket `lakehouse`, prefix `bronze/transactions/` filling with Delta files plus
-a `_delta_log/`. If bronze stays empty, check `docker compose logs spark-bronze`.
+a `_delta_log/`. If bronze stays empty, check `docker compose --env-file "$TP_AIRFLOW_ENV" logs spark-bronze`.
 
-**5 · Run the batch path in Airflow** → <http://localhost:8088> (`admin` / `admin`)
+**5 · Run the batch path in Airflow** → <http://localhost:8088> (`admin` / generated private password)
 
 ```bash
-docker compose exec airflow-scheduler airflow dags unpause medallion_pipeline
-docker compose exec airflow-scheduler airflow dags trigger medallion_pipeline
-docker compose exec airflow-scheduler airflow dags list-runs -d medallion_pipeline
+docker compose --env-file "$TP_AIRFLOW_ENV" exec airflow-scheduler airflow dags unpause medallion_pipeline
+docker compose --env-file "$TP_AIRFLOW_ENV" exec airflow-scheduler airflow dags trigger medallion_pipeline
+docker compose --env-file "$TP_AIRFLOW_ENV" exec airflow-scheduler airflow dags list-runs -d medallion_pipeline
 ```
 
 In the UI, the graph view should turn green for
@@ -421,7 +423,7 @@ panel lists scored transactions with a `fraud_score` between 0 and 1.
 **8 · Confirm fraud scoring specifically**
 
 ```bash
-docker compose exec airflow-scheduler \
+docker compose --env-file "$TP_AIRFLOW_ENV" exec airflow-scheduler \
   airflow tasks states-for-dag-run medallion_pipeline <run_id>   # fraud_scoring = success
 ```
 
@@ -434,7 +436,7 @@ dashboard's last two panels.
 **Teardown**
 
 ```bash
-docker compose down -v           # -v also drops the lakehouse + Airflow volumes
+docker compose --env-file "$TP_AIRFLOW_ENV" down -v           # -v also drops the lakehouse + Airflow volumes
 ```
 
 See [`infra/README.md`](infra/README.md) for the networking model and for running
@@ -471,14 +473,14 @@ the Spark tests can never pass silently in CI (see
 | `test` | `pytest -q` — the 109 fast tests |
 | `spark-tests` | Java 17 + PySpark, the 12 Spark tests with `TP_REQUIRE_SPARK=1` |
 | `security` | bandit — Python SAST (blocking) · gitleaks — secret scanning over the full history (blocking) |
-| `docker-build` | `docker compose config` on all three files + builds the jobs and dashboard images |
+| `docker-build` | `docker compose --env-file "$TP_AIRFLOW_ENV" config` on all three files + builds the jobs and dashboard images |
 
 ---
 
 ## Production & security considerations
 
 This is a **local, development-grade** stack for a portfolio project, tuned for
-`docker compose up` on one machine. Everything below is deliberately *not*
+`docker compose --env-file "$TP_AIRFLOW_ENV" up` on one machine. Everything below is deliberately *not*
 production-hardened — knowing the gap is part of the exercise. Full write-up in
 [SECURITY.md](SECURITY.md).
 
@@ -487,9 +489,9 @@ production-hardened — knowing the gap is part of the exercise. Full write-up i
 | **Credentials** | `minioadmin` / `minioadmin123` defaults, overridable via env vars; `infra/.env` is git-ignored | No credentials in code, compose files or images — a secret manager (Vault, AWS Secrets Manager, Kubernetes secrets) with rotation and per-service identities |
 | **Kafka** | `PLAINTEXT` listener, no auth, broker reachable only on the compose network | TLS in transit + SASL/mTLS authentication, per-topic ACLs, quotas |
 | **Object store** | MinIO root credentials, one wide-open `lakehouse` bucket | Scoped IAM policies per job (bronze writer ≠ gold reader), least-privilege prefixes, server-side encryption, versioning, retention/legal hold |
-| **Containers** | Vendor images, jobs run as the `spark` user, but Airflow runs as root (`user: "0:0"`) for local volume permissions | Non-root users everywhere, read-only root filesystems, dropped capabilities, `no-new-privileges`, pinned digests, resource limits |
+| **Containers** | Vendor images, jobs run as the `spark` user, Airflow uses a configured UID and socket group | Non-root users everywhere, read-only root filesystems, dropped capabilities, `no-new-privileges`, pinned digests, resource limits |
 | **Airflow → Docker** | The scheduler mounts the host Docker socket so `DockerOperator` can launch Spark jobs — effectively host root | A Kubernetes executor (or a remote Docker API with mTLS) instead of the socket |
-| **Exposure** | Dashboard (8501), Airflow (8088, `admin`/`admin`), Kafka UI (8080) and MinIO console (9001) published on localhost with dev logins | Nothing public without authentication: SSO/OIDC in front of Airflow and Streamlit, private networking, an ingress/WAF, audit logging |
+| **Exposure** | Dashboard (8501), Airflow (8088, generated private password), Kafka UI (8080) and MinIO console (9001) published on localhost with dev logins | Nothing public without authentication: SSO/OIDC in front of Airflow and Streamlit, private networking, an ingress/WAF, audit logging |
 | **Data** | 100 % synthetic, no PII | Real transaction data is regulated (PCI-DSS/GDPR): encryption at rest and in transit, tokenized PAN/account identifiers, field-level access control, retention limits, lineage and audit trails |
 | **Model artifact** | `pickle` read from a local path | Unpickling executes code: signed artifacts from a model registry, integrity verification before load |
 | **Supply chain** | bandit, gitleaks and `pip-audit` all block CI; Dependabot opens weekly update PRs | A second scanner (Trivy — see SECURITY.md), SBOM generation, pinned and signed base images, a blocking image-CVE gate |
@@ -552,7 +554,7 @@ gate + quarantine, reported through a Great Expectations suite),
 **orchestration** (Airflow), **ML integration** (batch scoring + drift
 detection), **secure-by-default engineering habits** (SAST, secret scanning,
 documented threat surface — see [SECURITY.md](SECURITY.md)), and **idempotent,
-containerized, reproducible** infrastructure (`docker compose up`).
+containerized, reproducible** infrastructure (`docker compose --env-file "$TP_AIRFLOW_ENV" up`).
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the per-layer breakdown and
 a competency map.
@@ -562,3 +564,19 @@ a competency map.
 ## License
 
 [MIT](LICENSE) © 2026 Paweł Jankowicz
+
+## Weryfikacja środowiska — 2026-10-17
+
+Dodano `scripts/test-local.sh`: uruchamia istniejący smoke danych syntetycznych i rzeczywiste lokalne transformacje Spark bronze/silver/gold bez Kafka, MinIO i Airflow. Wymaga zależności dev/Spark oraz Javy 17; aktywuj swój venv, ustaw `JAVA_HOME` i uruchom `bash scripts/test-local.sh`. Wynik: 14 PASS. Wcześniejszy pełny zestaw środowiska: 156 PASS; to inny zakres, nie suma nowych testów.
+
+Pobranie wskazanego oficjalnego obrazu MinIO pozostało niedostępne. Upstream informuje, że repozytorium community nie jest już utrzymywane, dystrybucja jest źródłowa, a stare binaria nie otrzymują aktualizacji. Nie zastąpiono obrazu niezweryfikowanym mirror-em. Test lokalny nie potwierdza S3, Kafka, Delta storage, Airflow ani całego klastra. Przed pełnym wdrożeniem trzeba wybrać utrzymywany magazyn zgodny z S3 i wykonać integrację, backup/restore i kontrolę metryk na reprezentatywnych danych. Nie wdrożono produkcji.
+
+## Walidacja etapu 2 — 2026-10-18
+
+Oba buildery Spark (streaming oraz silver/gold) zachowują TLS dla endpointu HTTPS zamiast wymuszać `fs.s3a.connection.ssl.enabled=false`. Niepoprawny schemat, credentials w URL, ścieżka, query i niepoprawny port są odrzucane. `pytest -q tests/test_s3_transport.py tests/test_config.py`: 18 PASS; Ruff PASS. To test konfiguracji builderów, nie dowód negocjacji TLS z serwerem.
+
+Dodatkowa walidacja 2026-10-19 wykryła i naprawiła dwa rzeczywiste błędy scoringu: brak distutils dla Spark 3.5 na Pythonie 3.12 (w requirements-spark.txt dodano setuptools) oraz nierozpoznawaną sygnaturę pandas UDF (jawny kontrakt SCALAR). Nowy test w test_gold_aggregates.py wykonuje scoring w workerze Spark; 12 testów scoringu/agregacji PASS. pip-audit zainstalowanego środowiska Python: 0 zgłoszeń.
+
+`tests/test_live_pipeline.py` to test opt-in rzeczywistych Kafka, MinIO/S3A i Delta. Wymaga TP_LIVE_INTEGRATION=1, TP_TEST_BUCKET wskazującego **nowy prywatny bucket tp-stage2-<32 znaki UUID hex>**, TP_TEST_JARS (lista zgodnych jarów rozdzielona przecinkami), KAFKA_BOOTSTRAP_SERVERS, S3_ENDPOINT, S3_ACCESS_KEY i S3_SECRET_KEY. Przygotuj te zasoby wyłącznie w izolowanym środowisku i uruchom `python -m pytest -q tests/test_live_pipeline.py`. Caller odpowiada za utworzenie/usunięcie własnego bucketa; test tworzy i usuwa tylko swój losowy temat Kafka. Bez opt-in jest SKIPPED, a nie PASS.
+
+Zwalidowany przebieg: 40 wiadomości Kafka → Delta Bronze w prawdziwym S3A → Silver → Gold/scoring → raport jakości i driftu; ponowne uruchomienie checkpointu i MERGE nie dubluje danych; rzeczywista odmowa połączenia S3A propaguje błąd zamiast pustego wyniku. Wykorzystano Spark 3.5.9, Delta 3.2.1, Kafka 3.8.0, JDK 17 i Python 3.12. Pełne wdrożenie compose (inne przypięte wersje), Airflow, dashboard/DuckDB i produkcyjny TLS nie są objęte tym wynikiem. DuckDB nie pobrał oficjalnego rozszerzenia httpfs (extensions.duckdb.org: HTTP 403). Nie obchodzono polityki sieciowej. Projekt nadal pozostaje PARTIAL. Ograniczenia środowiskowe i logi zapisano w raporcie etapu 2.
