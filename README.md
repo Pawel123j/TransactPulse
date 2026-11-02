@@ -8,8 +8,7 @@
 > to analysts via DuckDB and a Streamlit dashboard — with Airflow orchestrating
 > the batch layers and a fraud-scoring ML model in the loop.
 
-![status](https://img.shields.io/badge/status-stable-brightgreen)
-![version](https://img.shields.io/badge/version-v1.0.0-blue)
+![status](https://img.shields.io/badge/status-portfolio%20demo-blue)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 ![python](https://img.shields.io/badge/python-3.11-3776AB)
 ![docker](https://img.shields.io/badge/run-docker%20compose-2496ED)
@@ -87,24 +86,18 @@ with data-quality and model-drift reporting along the way.
 | Model drift detection (PSI / KS) | [`lakehouse/drift.py`](lakehouse/drift.py) |
 | Orchestration of the batch path | [`orchestration/dags/`](orchestration/dags/) |
 | Interactive dashboard over the gold layer | [`dashboard/`](dashboard/README.md) |
-| Automated tests (121, incl. Spark) + CI/CD + security scanning | [`tests/`](tests/), [`.github/workflows/ci.yml`](.github/workflows/ci.yml) |
+| Automated tests (core and Spark suites) + CI + security scanning | [`tests/`](tests/), [`.github/workflows/ci.yml`](.github/workflows/ci.yml) |
 
 ---
 
 ## Screenshots
 
-Every interface in this project is served by a container, so the screenshots are
-captured from a live local run rather than committed as mock-ups. The capture
-procedure — which services to start and what each image must show — is in
-[`docs/screenshots/README.md`](docs/screenshots/README.md), and the run itself is
-step 1 of [`HUMAN_ACTION_REQUIRED.md`](HUMAN_ACTION_REQUIRED.md).
+The dashboard screenshot below is from the running offline demo and uses the
+fixed synthetic Gold sample. It is not output from the streaming pipeline or
+fraud model. Screenshots from Airflow and MinIO remain pending a full Compose
+run; capture instructions are in [`docs/screenshots/README.md`](docs/screenshots/README.md).
 
-<!-- Uncomment once the files in docs/screenshots/ have been captured.
-| Streamlit dashboard | Airflow DAG |
-| ------------------- | ----------- |
-| ![Dashboard overview](docs/screenshots/dashboard-overview.png) | ![medallion_pipeline DAG](docs/screenshots/airflow-dag.png) |
-| ![Fraud scoring](docs/screenshots/dashboard-fraud.png) | ![DAG run history](docs/screenshots/airflow-runs.png) |
--->
+![TransactPulse offline synthetic dashboard demo](docs/screenshots/dashboard-synthetic-demo.png)
 
 ---
 
@@ -295,7 +288,28 @@ TransactPulse/
 
 ## Quickstart
 
-Bring up the **entire stack** with one command:
+### Open the dashboard demo (no Docker or external services)
+
+This mode uses a small, fixed synthetic Gold snapshot. It is illustrative data,
+not output from the streaming pipeline or fraud model.
+
+```bash
+git clone https://github.com/Pawel123j/TransactPulse.git
+cd TransactPulse
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt -r dashboard/requirements.txt
+DEMO_MODE=synthetic streamlit run dashboard/app.py
+```
+
+Open <http://localhost:8501>. The banner identifies the data as a fixed synthetic
+sample. The demo has no Kafka, Spark, MinIO, Airflow, or network dependency.
+
+### Start the full streaming stack
+
+Generate the private Airflow settings first. Full instructions and Docker
+requirements are in [`HUMAN_ACTION_REQUIRED.md`](HUMAN_ACTION_REQUIRED.md) and
+[`orchestration/README.md`](orchestration/README.md). Then start the services:
 
 ```bash
 git clone https://github.com/Pawel123j/TransactPulse.git
@@ -305,7 +319,9 @@ docker compose --env-file "$TP_AIRFLOW_ENV" up -d --build
 ```
 
 This starts Kafka (KRaft) + Kafka UI, MinIO, the bronze Spark stream, a synthetic
-transaction **generator**, Airflow, and the Streamlit **dashboard**.
+transaction **generator**, Airflow, and the Streamlit **dashboard**. The full
+stack requires Docker and substantially more memory and disk than the dashboard
+demo.
 
 | Service          | URL                          | Login                      |
 | ---------------- | ---------------------------- | -------------------------- |
@@ -337,10 +353,10 @@ silver → gold → scoring → drift; the dashboard reads gold. First boot is s
 
 ## End-to-end verification (requires a local Docker daemon)
 
-> ⚠️ **Not executed in CI, and not executed in the sandbox this release was
-> prepared in** (no Docker daemon available there). CI validates the compose
-> files and builds both images; the live run below is a **manual procedure** to
-> execute on a machine with Docker. Treat it as unverified until you have run it.
+> ⚠️ **The full Compose run is not covered by the dashboard demo test.** CI
+> validates the compose files and builds the application images; the live run
+> below is a **manual procedure** to execute on a machine with Docker. Treat it
+> as unverified until you have run it.
 > Budget ~15 GB of disk and 8 GB of RAM — Spark, Airflow, Kafka and MinIO all run
 > side by side.
 
@@ -447,11 +463,11 @@ individual slices of the stack.
 ## Tests & quality gates
 
 ```bash
-# fast suite (no JVM needed) — 109 tests
+# fast suite (no JVM needed)
 pip install -r requirements-dev.txt
 pytest -q
 
-# Spark transformation tests — 12 tests, needs a JDK (Java 17 in CI)
+# Spark transformation and transport tests — needs a JDK (Java 17 in CI)
 pip install -r requirements-spark.txt
 TP_REQUIRE_SPARK=1 pytest -q tests/test_bronze_transform.py \
     tests/test_silver_transform.py tests/test_gold_aggregates.py
@@ -470,8 +486,8 @@ the Spark tests can never pass silently in CI (see
 | Job | Checks |
 | --- | ------ |
 | `lint` | `ruff check` + `ruff format --check` |
-| `test` | `pytest -q` — the 109 fast tests |
-| `spark-tests` | Java 17 + PySpark, the 12 Spark tests with `TP_REQUIRE_SPARK=1` |
+| `test` | `pytest -q` — fast tests; optional integrations skip when their dependencies are absent |
+| `spark-tests` | Java 17 + PySpark, Spark/transport tests with `TP_REQUIRE_SPARK=1` |
 | `security` | bandit — Python SAST (blocking) · gitleaks — secret scanning over the full history (blocking) |
 | `docker-build` | `docker compose --env-file "$TP_AIRFLOW_ENV" config` on all three files + builds the jobs and dashboard images |
 
@@ -504,7 +520,9 @@ production-hardened — knowing the gap is part of the exercise. Full write-up i
 
 ## Roadmap
 
-**v1.0.0 — delivered.** Built in eight checkpointed stages:
+**Portfolio status:** the repository contains the eight implementation stages below.
+The offline dashboard is a quick way to review the UI; the full data platform
+still requires a local Compose run for end-to-end verification.
 
 - [x] **Stage 1 — Repository foundation & architecture** — structure, README, initial ADRs.
 - [x] **Stage 2 — Synthetic transaction generator** — realistic producer → Kafka ([ingestion/](ingestion/README.md)).

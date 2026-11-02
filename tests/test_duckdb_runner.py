@@ -96,13 +96,13 @@ def test_arrow_reads_delta_snapshot_and_refreshes_without_resurrecting_removed_f
     con = connect(cfg)
     try:
         register_gold_views(con, cfg)
-        assert con.execute("SELECT SUM(count) FROM scored_transactions").fetchone() == (3,)
+        assert con.execute("SELECT SUM(count) FROM scored_transactions").fetchall() == [(3,)]
         deltalake.write_deltalake(
             tmp_path / "scored_transactions", pa.table({"count": [5]}), mode="overwrite"
         )
         # A snapshot is intentionally stable until explicitly refreshed.
-        assert con.execute("SELECT SUM(count) FROM scored_transactions").fetchone() == (3,)
+        assert con.execute("SELECT SUM(count) FROM scored_transactions").fetchall() == [(3,)]
         register_gold_views(con, cfg)
-        assert con.execute("SELECT SUM(count) FROM scored_transactions").fetchone() == (5,)
+        assert con.execute("SELECT SUM(count) FROM scored_transactions").fetchall() == [(5,)]
     finally:
         con.close()

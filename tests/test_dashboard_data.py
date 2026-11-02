@@ -7,14 +7,12 @@ import json
 import pytest
 
 from dashboard.data_access import (
-    ISO2_TO_ISO3,
     KPI_SQL,
     VOLUME_BY_COUNTRY_SQL,
     DashboardConfig,
     query_df,
     read_json_report,
 )
-from lakehouse.dq_rules import ALLOWED_COUNTRIES
 
 
 def test_read_json_report_roundtrip(tmp_path) -> None:
@@ -27,12 +25,6 @@ def test_read_json_report_roundtrip(tmp_path) -> None:
 
 def test_read_json_report_missing_returns_none(tmp_path) -> None:
     assert read_json_report(tmp_path / "nope.json") is None
-
-
-def test_iso_map_covers_all_allowed_countries() -> None:
-    # Every domain country must have an ISO-3 mapping for the choropleth.
-    assert set(ISO2_TO_ISO3) >= ALLOWED_COUNTRIES
-    assert all(len(v) == 3 for v in ISO2_TO_ISO3.values())
 
 
 def test_sql_constants_are_nonempty_selects() -> None:

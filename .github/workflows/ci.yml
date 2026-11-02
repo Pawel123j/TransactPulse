@@ -57,6 +57,7 @@ jobs:
           TP_REQUIRE_SPARK: "1"
         run: |
           pytest -q -rs \
+            tests/test_s3_transport.py \
             tests/test_bronze_transform.py \
             tests/test_silver_transform.py \
             tests/test_gold_aggregates.py
@@ -83,7 +84,7 @@ jobs:
         env:
           GITLEAKS_VERSION: 8.21.2
       - name: Gitleaks (secret scanning) — blocking
-        run: /tmp/gitleaks dir . --no-banner --redact
+        run: /tmp/gitleaks git . --log-opts="--all" --no-banner --redact
 
       # ---- Dependency CVE gate -------------------------------------------
       # pip-audit is the blocking dependency gate: it installs from PyPI (no

@@ -12,16 +12,23 @@ Run locally::
 from __future__ import annotations
 
 import logging
+import sys
 import traceback
 from pathlib import Path
 
 import plotly.express as px
 import streamlit as st
 
-from dashboard.data_access import (
+# Streamlit puts the script directory on sys.path. Add the repository root so
+# the app can be launched directly from a clone without requiring an editable
+# package installation.
+REPOSITORY_ROOT = str(Path(__file__).resolve().parents[1])
+if REPOSITORY_ROOT not in sys.path:
+    sys.path.insert(0, REPOSITORY_ROOT)
+
+from dashboard.data_access import (  # noqa: E402 - repository root is added above for direct Streamlit runs
     CATEGORY_KPI_SQL,
     DAILY_TREND_SQL,
-    ISO2_TO_ISO3,
     KPI_SQL,
     TOP_SCORED_SQL,
     TOP_SIGNALS_SQL,
@@ -40,11 +47,16 @@ def _has_rows(df) -> bool:
 
 
 def render_header() -> None:
-    st.title("💳 TransactPulse — real-time transaction analytics")
+    st.title("💳 TransactPulse — transaction analytics")
     st.caption(
-        "Synthetic financial transactions · Kafka → Spark → Delta (medallion) → "
-        "DuckDB · fraud scoring & drift. All data is synthetic."
+        "Synthetic financial transactions · full stack: Kafka → Spark → Delta → "
+        "DuckDB · fraud scoring & drift. The offline demo uses a fixed Gold sample."
     )
+    if DashboardConfig.from_env().demo_mode:
+        st.info(
+            "Local portfolio demo · fixed synthetic Gold sample · "
+            "no Kafka or object storage required"
+        )
 
 
 def render_kpis(con) -> None:
@@ -68,30 +80,29 @@ def render_volume(con) -> None:
     if not _has_rows(df):
         st.info("No volume data yet.")
         return
-    df["iso3"] = df["country"].map(ISO2_TO_ISO3)
     left, right = st.columns([3, 2])
     with left:
-        fig = px.choropleth(
-            df.dropna(subset=["iso3"]),
-            locations="iso3",
+        fig = px.bar(
+            df,
+            x="country",
             color="total_volume_pln",
-            hover_name="country",
             color_continuous_scale="Blues",
+            y="total_volume_pln",
             title="Total volume (PLN)",
         )
         fig.update_layout(margin={"l": 0, "r": 0, "t": 40, "b": 0}, height=380)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     with right:
         bar = px.bar(
-            df.head(10),
+            df,
             x="country",
-            y="total_volume_pln",
+            y="tx_count",
             color="fraud_count",
             color_continuous_scale="Reds",
-            title="Top countries",
+            title="Transaction count by country",
         )
         bar.update_layout(margin={"l": 0, "r": 0, "t": 40, "b": 0}, height=380)
-        st.plotly_chart(bar, use_container_width=True)
+        st.plotly_chart(bar, width="stretch")
 
 
 def render_trend(con) -> None:
@@ -102,7 +113,7 @@ def render_trend(con) -> None:
         return
     fig = px.line(df, x="event_date", y=["tx_count", "fraud_count"], markers=True)
     fig.update_layout(margin={"l": 0, "r": 0, "t": 10, "b": 0}, height=320, legend_title="")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 def render_fraud(con) -> None:
@@ -111,7 +122,7 @@ def render_fraud(con) -> None:
     if _has_rows(cat):
         fig = px.bar(cat, x="merchant_category", y="fraud_rate", title="Fraud rate by category")
         fig.update_layout(margin={"l": 0, "r": 0, "t": 40, "b": 0}, height=320)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     left, right = st.columns(2)
     with left:
@@ -143,7 +154,7 @@ def render_quality(config: DashboardConfig) -> None:
     c1.metric("Silver rows", f"{int(metrics.get('row_count', 0)):,}")
     c2.metric("Quarantined", f"{int(metrics.get('quarantined_count', 0)):,}")
     c3.metric("Checks passed", f"{passed}/{len(checks)}")
-    st.dataframe(checks, use_container_width=True)
+    st.dataframe(checks, width="stretch")
 
 
 def render_drift(config: DashboardConfig) -> None:
@@ -154,12 +165,12 @@ def render_drift(config: DashboardConfig) -> None:
         return
     rows = [{"feature": k, **v} for k, v in report.get("metrics", {}).items()]
     st.caption(f"Model: {report.get('model_kind', '?')} · generated {report.get('generated', '?')}")
-    st.dataframe(rows, use_container_width=True)
+    st.dataframe(rows, width="stretch")
 
 
 def main() -> None:
     render_header()
-    st.button("Refresh pipeline data", key="refresh_pipeline")
+    st.button("Refresh data", key="refresh_pipeline")
     config = DashboardConfig.from_env()
     con = None
     try:

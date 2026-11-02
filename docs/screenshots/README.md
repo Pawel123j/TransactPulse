@@ -1,18 +1,15 @@
 # Screenshots
 
-This directory holds the screenshots referenced from the root `README.md`.
-
-They are **not** generated automatically: every UI in this project is served by
-a container, so capturing them requires a running Docker daemon and a browser.
-The exact capture procedure — which services to start, which URL to open and
-what each image must show — is in
-[`HUMAN_ACTION_REQUIRED.md`](../../HUMAN_ACTION_REQUIRED.md) at the repository
-root.
+This directory holds real screenshots referenced from the root `README.md`.
+`dashboard-synthetic-demo.png` is captured from the local Streamlit app in
+`DEMO_MODE=synthetic`. Full-stack captures require a running Compose deployment
+and are still pending.
 
 ## Expected files
 
 | File | Source | What it must show |
 | ---- | ------ | ----------------- |
+| `dashboard-synthetic-demo.png` | Streamlit offline demo, `http://localhost:8501` | Clearly labelled fixed synthetic data, KPI tiles and populated charts; not a model or pipeline result |
 | `dashboard-overview.png` | Streamlit, `http://localhost:8501` | The landing view over the gold layer: transaction volume, fraud-rate tiles and the time-series chart, populated with real generated data |
 | `dashboard-fraud.png` | Streamlit, `http://localhost:8501` | The fraud-scoring view: scored transactions with their model score, filtered to the high-risk band |
 | `airflow-dag.png` | Airflow, `http://localhost:8088` | The `medallion_pipeline` DAG in **Graph** view after a successful run — every task green |
