@@ -4,7 +4,7 @@ Reads the gold layer (via DuckDB over Delta on MinIO) and the data-quality / dri
 reports, presenting:
 
 - **KPIs** — transactions, volume (PLN), fraud count & rate.
-- **Volume by country** — choropleth map + top-countries bar chart.
+- **Volume by country** — local Plotly bar charts for volume and transaction count.
 - **Daily trend** — transactions and fraud over time.
 - **Fraud** — fraud rate by category, top ML-scored transactions, strongest
   rule-based signals.
@@ -12,9 +12,23 @@ reports, presenting:
 - **Drift** — PSI/KS of `fraud_score` / `amount_pln` vs the training reference.
 
 The dashboard degrades gracefully: panels show an informational message when their
-table/report does not exist yet.
+table/report does not exist yet. The synthetic demo uses local charts and does not
+fetch map geometry or other assets from a CDN.
 
 ## Run
+
+### Self-contained portfolio demo (no services)
+
+From the repository root, install the dashboard dependencies and start the fixed
+synthetic sample:
+
+```bash
+pip install -r dashboard/requirements.txt
+DEMO_MODE=synthetic streamlit run dashboard/app.py
+```
+
+The app labels these figures as synthetic and does not claim they came from the
+Spark pipeline or model.
 
 ### In the full stack
 

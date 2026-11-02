@@ -60,3 +60,31 @@ def test_dashboard_outage_is_visible_without_exposing_credentials(monkeypatch):
     assert "unavailable" in app.error[0].value
     assert "private-credential-test" not in app.error[0].value
     assert not app.metric
+
+
+def test_synthetic_portfolio_demo_renders_without_external_services(monkeypatch):
+    monkeypatch.setenv("DEMO_MODE", "synthetic")
+    monkeypatch.setenv("REPORTS_DIR", "/path/that/does/not/exist")
+    app = AppTest.from_file(str(APP)).run(timeout=15)
+
+    assert not app.exception
+    assert not app.error
+    assert any("fixed synthetic Gold sample" in info.value for info in app.info)
+    assert app.metric[0].value == "12,592"
+    assert app.metric[2].value == "212"
+
+
+def test_synthetic_gold_aggregates_reconcile_across_country_and_category():
+    from dashboard.demo_data import register_demo_tables
+
+    con = duckdb.connect()
+    register_demo_tables(con)
+    country = con.execute(
+        "SELECT SUM(tx_count), SUM(fraud_count), SUM(total_volume_pln) FROM daily_volume_by_country"
+    ).fetchone()
+    category = con.execute(
+        "SELECT SUM(tx_count), SUM(fraud_count), SUM(total_volume_pln) FROM merchant_category_kpi"
+    ).fetchone()
+    con.close()
+
+    assert country == category
