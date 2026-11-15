@@ -1,4 +1,4 @@
-> Current setup and verification: [Stage 3 evidence and limits](docs/STAGE3_VALIDATION.md). Generate private Airflow settings as described in [orchestration](orchestration/README.md), then set `TP_AIRFLOW_ENV` to the generated `airflow.env` path before Compose commands. Existing database volumes require their existing credentials; do not regenerate credentials for them.
+> Current setup and verification: [recovery checks and limits](docs/RECOVERY_VALIDATION.md). Generate private Airflow settings as described in [orchestration](orchestration/README.md), then set `TP_AIRFLOW_ENV` to the generated `airflow.env` path before Compose commands. Existing database volumes require their existing credentials; do not regenerate credentials for them.
 
 # TransactPulse
 
@@ -470,7 +470,7 @@ pytest -q
 # Spark transformation and transport tests — needs a JDK (Java 17 in CI)
 pip install -r requirements-spark.txt
 TP_REQUIRE_SPARK=1 pytest -q tests/test_bronze_transform.py \
-    tests/test_silver_transform.py tests/test_gold_aggregates.py
+    tests/test_silver_transform.py tests/test_gold_aggregates.py tests/test_delta_pipeline.py
 
 # lint, format and security
 ruff check . && ruff format --check .
@@ -487,9 +487,10 @@ the Spark tests can never pass silently in CI (see
 | --- | ------ |
 | `lint` | `ruff check` + `ruff format --check` |
 | `test` | `pytest -q` — fast tests; optional integrations skip when their dependencies are absent |
-| `spark-tests` | Java 17 + PySpark, Spark/transport tests with `TP_REQUIRE_SPARK=1` |
+| `spark-tests` | Python 3.11 + Java 17 + Spark 3.5.9/Delta 3.2.1; transformations, NULL quarantine, actual Delta writes and replay in a fresh JVM |
 | `security` | bandit — Python SAST (blocking) · gitleaks — secret scanning over the full history (blocking) |
-| `docker-build` | `docker compose --env-file "$TP_AIRFLOW_ENV" config` on all three files + builds the jobs and dashboard images |
+| `docker-build` | Compose validation; jobs/dashboard/MinIO/Airflow builds; writable report/model volumes; real Kafka → S3A/Delta → DuckDB/Streamlit test, checkpoint restart and storage outage |
+| `airflow-dags` | Real Airflow DAG import and serialization; scheduling is a separate acceptance step |
 
 ---
 

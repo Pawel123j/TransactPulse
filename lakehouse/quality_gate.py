@@ -10,9 +10,39 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any
+
+from lakehouse.quality import evaluate_checks
+
+_COUNTS = (
+    "row_count",
+    "quarantined_count",
+    "duplicate_ids",
+    "null_transaction_id",
+    "null_account_id",
+    "null_amount",
+    "null_amount_pln",
+)
+
+
+def _valid_metrics(metrics: Any) -> bool:
+    if not isinstance(metrics, dict):
+        return False
+    if any(type(metrics.get(key)) is not int or metrics[key] < 0 for key in _COUNTS):
+        return False
+    for key in ("amount_min", "amount_max"):
+        if key not in metrics:
+            return False
+        value = metrics[key]
+        if value is None:
+            if metrics["row_count"] != 0:
+                return False
+        elif type(value) not in (int, float) or not math.isfinite(value):
+            return False
+    return True
 
 
 def evaluate_gate(report: dict[str, Any], max_quarantine_ratio: float = 0.05) -> list[str]:
@@ -22,15 +52,31 @@ def evaluate_gate(report: dict[str, Any], max_quarantine_ratio: float = 0.05) ->
         report: Parsed ``silver_quality_report.json`` (``{"metrics": ..., "checks": ...}``).
         max_quarantine_ratio: Maximum tolerated quarantined / (silver + quarantined).
     """
-    failures: list[str] = []
-
-    for check in report.get("checks", []):
-        if not check.get("passed", False):
-            failures.append(f"check failed: {check.get('check', '<unknown>')}")
-
-    metrics = report.get("metrics", {})
-    row_count = int(metrics.get("row_count", 0) or 0)
-    quarantined = int(metrics.get("quarantined_count", 0) or 0)
+    if not math.isfinite(max_quarantine_ratio) or not 0 <= max_quarantine_ratio <= 1:
+        return ["invalid quarantine threshold"]
+    if not isinstance(report, dict) or not _valid_metrics(report.get("metrics")):
+        return ["missing or invalid quality metrics; regenerate the silver report"]
+    metrics = report["metrics"]
+    computed = evaluate_checks(metrics)
+    expected = {check["check"] for check in computed}
+    checks = report.get("checks")
+    if not isinstance(checks, list) or any(
+        not isinstance(check, dict)
+        or not isinstance(check.get("check"), str)
+        or type(check.get("passed")) is not bool
+        for check in checks
+    ):
+        return ["missing or invalid quality checks"]
+    names = [check["check"] for check in checks]
+    if not expected.issubset(names) or len(names) != len(set(names)):
+        return ["missing or duplicate quality checks; regenerate the silver report"]
+    # Recompute the required checks: a stale/success-looking summary must not
+    # override the measured NULL or duplicate counters.
+    failures = sorted(
+        {f"check failed: {check['check']}" for check in [*checks, *computed] if not check["passed"]}
+    )
+    row_count = metrics["row_count"]
+    quarantined = metrics["quarantined_count"]
     total = row_count + quarantined
     if total > 0:
         ratio = quarantined / total

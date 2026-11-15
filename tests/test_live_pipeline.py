@@ -1,7 +1,8 @@
 """Opt-in real Kafka/S3A/Delta pipeline on explicitly isolated test resources.
 
 Requires TP_LIVE_INTEGRATION=1, TP_TEST_BUCKET (new private bucket),
-TP_TEST_JARS (comma-separated compatible connector jars), KAFKA_BOOTSTRAP_SERVERS,
+TP_TEST_JARS (comma-separated compatible connector jars) or PYSPARK_SUBMIT_ARGS,
+KAFKA_BOOTSTRAP_SERVERS,
 S3_ENDPOINT, S3_ACCESS_KEY and S3_SECRET_KEY. Never use production resources.
 The caller provisions/removes its unique bucket. This test owns its Kafka topic.
 """
@@ -47,19 +48,24 @@ def test_live_medallion_pipeline_and_checkpoint_recovery(  # noqa: PLR0915 -- on
 
         serializer = JsonSerializer()
         records = list(TransactionGenerator(GeneratorConfig(seed=21)).stream(40))
-        for record in records:
-            producer.produce(topic, serializer.serialize(record.to_dict()), callback=delivery)
+        payloads = [record.to_dict() for record in records]
+        # A malformed business field must survive Bronze and be persisted only
+        # in quarantine, never in the dashboard's Gold totals.
+        payloads.append({**payloads[0], "transaction_id": "null-currency", "currency": None})
+        for payload in payloads:
+            producer.produce(topic, serializer.serialize(payload), callback=delivery)
         assert producer.flush(20) == 0
-        assert not errors and len(delivered) == len(records)
+        assert not errors and len(delivered) == len(payloads)
 
         builder = (
             SparkSession.builder.master("local[1]")
-            .config("spark.jars", os.environ["TP_TEST_JARS"])
             .config("spark.ui.enabled", "false")
             .config("spark.databricks.delta.snapshotPartitions", "1")
             .config("spark.default.parallelism", "1")
             .config("spark.sql.adaptive.enabled", "false")
         )
+        if jars := os.environ.get("TP_TEST_JARS"):
+            builder = builder.config("spark.jars", jars)
         monkeypatch.setattr(SparkSession, "builder", builder)
         storage = {
             "s3_endpoint": os.environ["S3_ENDPOINT"],
@@ -73,21 +79,25 @@ def test_live_medallion_pipeline_and_checkpoint_recovery(  # noqa: PLR0915 -- on
         spark = build_spark_session(bronze_config)
 
         _ingest(spark, bronze_config)
-        assert spark.read.format("delta").load(bronze_config.bronze_path).count() == 40
+        assert spark.read.format("delta").load(bronze_config.bronze_path).count() == len(payloads)
         # Restart with the durable S3 checkpoint: committed Kafka offsets must
         # prevent the same messages from being appended for a second time.
         _ingest(spark, bronze_config)
-        assert spark.read.format("delta").load(bronze_config.bronze_path).count() == 40
+        assert spark.read.format("delta").load(bronze_config.bronze_path).count() == len(payloads)
 
-        clean_count = _assert_silver_gold(spark, storage, tmp_path)
+        clean_count = _assert_silver_gold(spark, storage, tmp_path, expected_records=len(payloads))
         dashboard = _assert_duckdb_dashboard(storage, tmp_path, monkeypatch, clean_count)
 
         extra = next(TransactionGenerator(GeneratorConfig(seed=22)).stream(1))
         producer.produce(topic, serializer.serialize(extra.to_dict()), callback=delivery)
         assert producer.flush(20) == 0 and not errors
         _ingest(spark, bronze_config)
-        assert spark.read.format("delta").load(bronze_config.bronze_path).count() == 41
-        new_count = _assert_silver_gold(spark, storage, tmp_path, expected_records=41)
+        assert (
+            spark.read.format("delta").load(bronze_config.bronze_path).count() == len(payloads) + 1
+        )
+        new_count = _assert_silver_gold(
+            spark, storage, tmp_path, expected_records=len(payloads) + 1
+        )
         assert new_count > clean_count
         dashboard.button(key="refresh_pipeline").click().run(timeout=30)
         _assert_dashboard_count(dashboard, new_count)
@@ -111,7 +121,8 @@ def _assert_silver_gold(spark, storage, tmp_path, expected_records=40):
     from lakehouse.fx_rates import fx_rates_dataframe
     from lakehouse.gold_job import run_step
     from lakehouse.quality import generate_report
-    from lakehouse.silver_job import read_bronze, upsert_silver
+    from lakehouse.quality_gate import run_gate
+    from lakehouse.silver_job import read_bronze, upsert_silver, write_quarantine
     from lakehouse.transforms import to_silver
 
     silver_config = SilverConfig(
@@ -120,6 +131,14 @@ def _assert_silver_gold(spark, storage, tmp_path, expected_records=40):
     valid, quarantine = to_silver(read_bronze(spark, silver_config), fx_rates_dataframe(spark))
     clean_count, rejected_count = valid.count(), quarantine.count()
     assert clean_count > 0 and clean_count + rejected_count == expected_records
+    assert quarantine.filter("transaction_id = 'null-currency'").first().dq_errors == [
+        "currency_allowed"
+    ]
+    assert valid.filter("transaction_id = 'null-currency'").count() == 0
+    if rejected_count:
+        write_quarantine(quarantine, silver_config)
+        persisted = spark.read.format("delta").load(silver_config.quarantine_path)
+        assert persisted.filter("size(dq_errors) = 0").count() == 0
     upsert_silver(spark, valid, silver_config)
     upsert_silver(spark, valid, silver_config)
     silver = spark.read.format("delta").load(silver_config.silver_path)
@@ -128,6 +147,8 @@ def _assert_silver_gold(spark, storage, tmp_path, expected_records=40):
         silver, quarantine_count=rejected_count, docs_dir=silver_config.docs_dir
     )
     assert quality["row_count"] == clean_count
+    assert quality["null_amount_pln"] == 0
+    assert run_gate(tmp_path / "quality/silver_quality_report.json") == 0
 
     gold_config = GoldConfig(
         **storage,

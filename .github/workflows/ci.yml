@@ -60,7 +60,8 @@ jobs:
             tests/test_s3_transport.py \
             tests/test_bronze_transform.py \
             tests/test_silver_transform.py \
-            tests/test_gold_aggregates.py
+            tests/test_gold_aggregates.py \
+            tests/test_delta_pipeline.py
 
   security:
     name: Security checks (bandit, gitleaks)
@@ -75,7 +76,7 @@ jobs:
       - name: Install bandit
         run: pip install "bandit[toml]>=1.7,<2"
       - name: Bandit (Python SAST) — blocking
-        run: bandit -c pyproject.toml -r analytics dashboard ingestion lakehouse orchestration streaming
+        run: bandit -c pyproject.toml -r analytics dashboard infra ingestion lakehouse orchestration streaming
       - name: Install gitleaks
         run: |
           curl -sSL -o /tmp/gitleaks.tar.gz \
@@ -128,6 +129,7 @@ jobs:
   docker-build:
     name: Validate Docker builds
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v7
       - name: Validate compose files
@@ -137,9 +139,26 @@ jobs:
           docker compose --env-file /tmp/transactpulse-ci-settings/airflow.env -f infra/docker-compose.yml config -q
           docker compose --env-file /tmp/transactpulse-ci-settings/airflow.env -f orchestration/docker-compose.yml config -q
       - name: Build jobs image (Spark + Delta + ML)
-        run: docker build -f streaming/Dockerfile -t transactpulse/streaming:ci .
+        run: docker build -f streaming/Dockerfile -t transactpulse/streaming:ci -t transactpulse/streaming:latest .
+      - name: Verify Python and Java in the jobs image
+        run: |
+          docker run --rm --entrypoint python3 transactpulse/streaming:ci -c \
+            'import sys,pyspark,sklearn,pyarrow; assert sys.version_info[:2] == (3,11); assert pyspark.__version__ == "3.5.9"; print(sys.version,sklearn.__version__,pyarrow.__version__)'
+          docker run --rm --entrypoint java transactpulse/streaming:ci -version
       - name: Build dashboard image
         run: docker build -f dashboard/Dockerfile -t transactpulse/dashboard:ci .
+      - name: Verify report and model volumes for the non-root jobs user
+        run: |
+          docker run --rm -v tp-ci-reports:/reports --entrypoint python transactpulse/dashboard:ci -c \
+            'from pathlib import Path; Path("/reports/dashboard-first").touch()'
+          docker run --rm -v tp-ci-reports:/reports -v tp-ci-models:/app/models \
+            --entrypoint python transactpulse/streaming:ci -c \
+            'from pathlib import Path; Path("/reports/job-write").touch(); Path("/app/models/model-write").touch()'
+          docker volume rm tp-ci-reports tp-ci-models
+      - name: Build official MinIO source
+        run: docker build -f infra/minio/Dockerfile -t transactpulse/minio:RELEASE.2025-10-15T17-29-55Z .
+      - name: Real Kafka, S3A, Delta and dashboard with replay
+        run: bash scripts/test-live-container.sh
       - name: Build Airflow image
         run: docker build -f orchestration/Dockerfile -t transactpulse/airflow:ci .
 

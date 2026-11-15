@@ -20,6 +20,7 @@ from pyspark.sql.types import (  # noqa: E402
 )
 
 from lakehouse.fx_rates import fx_rates_dataframe  # noqa: E402
+from lakehouse.quality import compute_metrics, evaluate_checks  # noqa: E402
 from lakehouse.transforms import (  # noqa: E402
     SILVER_COLUMNS,
     cast_and_extract,
@@ -155,3 +156,59 @@ def test_to_silver_end_to_end(spark):
     assert valid.count() == 1  # 'a' deduped to one row, 'b' quarantined
     assert {r["transaction_id"] for r in valid.collect()} == {"a"}
     assert quarantine.count() == 1
+
+
+def test_every_required_null_is_quarantined_before_gold(spark):
+    from ingestion.schema import FIELDS
+    from lakehouse.dq_rules import evaluate
+    from lakehouse.gold_aggregates import daily_volume_by_country
+
+    records = [{"data": _data(transaction_id="good")}]
+    for index, field in enumerate(FIELDS, start=1):
+        records.append({"data": _data(**{field: None}), "_offset": index})
+    records.append({"data": dict.fromkeys(FIELDS), "_offset": len(FIELDS) + 1})
+    valid, quarantine = to_silver(_bronze(spark, records), fx_rates_dataframe(spark))
+
+    clean = valid.collect()
+    assert len(clean) == 1 and clean[0]["transaction_id"] == "good"
+    assert clean[0]["amount_pln"] == 430.0
+    rejected = quarantine.collect()
+    assert len(rejected) == len(FIELDS) + 1
+    for row in rejected:
+        assert row["dq_errors"]
+        assert set(row["dq_errors"]) == set(evaluate(row.asDict()))
+        assert row["quarantine_time"] is not None
+    gold = daily_volume_by_country(valid).collect()
+    assert len(gold) == 1
+    assert gold[0]["tx_count"] == 1 and gold[0]["total_volume_pln"] == 430.0
+
+
+def test_unknown_sql_predicate_fails_closed(spark, monkeypatch):
+    from lakehouse import transforms
+    from lakehouse.dq_rules import Rule
+
+    # A future rule can accidentally return SQL UNKNOWN; the generic split must
+    # still quarantine it even when that rule omits an explicit IS NOT NULL.
+    monkeypatch.setattr(
+        transforms,
+        "RULES",
+        (Rule("nullable_rule", "regression", lambda _: False, "CAST(NULL AS BOOLEAN)"),),
+    )
+    valid, quarantine = to_silver(_bronze(spark, [{"data": _data()}]), fx_rates_dataframe(spark))
+    assert valid.count() == 0
+    assert quarantine.collect()[0]["dq_errors"] == ["nullable_rule"]
+
+
+def test_quality_metrics_detect_missing_pln_amount(spark):
+    from pyspark.sql import functions as F
+
+    valid, _ = to_silver(_bronze(spark, [{"data": _data()}]), fx_rates_dataframe(spark))
+    metrics = compute_metrics(valid)
+    assert metrics["null_amount_pln"] == 0
+    assert all(check["passed"] for check in evaluate_checks(metrics))
+
+    damaged = valid.withColumn("amount_pln", F.lit(None).cast("double"))
+    metrics = compute_metrics(damaged)
+    assert metrics["null_amount_pln"] == 1
+    checks = {check["check"]: check["passed"] for check in evaluate_checks(metrics)}
+    assert checks["no_null_amount_pln"] is False

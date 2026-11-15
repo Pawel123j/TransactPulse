@@ -52,14 +52,14 @@ and the suite at
 # In Docker (reuses the spark image; override the entrypoint):
 docker compose -f infra/docker-compose.yml run --rm \
   --entrypoint /opt/spark/bin/spark-submit spark-bronze \
-  --packages io.delta:delta-spark_2.12:3.2.0,org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262 \
+  --packages io.delta:delta-spark_2.12:3.2.1,org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262 \
   --conf spark.jars.ivy=/tmp/.ivy2 \
   /app/lakehouse/silver_job.py
 
 # From the host:
 pip install -r lakehouse/requirements.txt
 spark-submit \
-  --packages io.delta:delta-spark_2.12:3.2.0,org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262 \
+  --packages io.delta:delta-spark_2.12:3.2.1,org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262 \
   lakehouse/silver_job.py
 ```
 
