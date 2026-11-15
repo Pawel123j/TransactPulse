@@ -7,11 +7,13 @@ import pytest
 from lakehouse.config import GoldConfig, SilverConfig
 from streaming.config import BronzeConfig
 from streaming.s3_config import ssl_enabled
+from tests.spark_support import requires_spark
 
 
 @pytest.mark.parametrize("config_type", [BronzeConfig, SilverConfig, GoldConfig])
 @pytest.mark.parametrize("scheme, expected", [("http", "false"), ("https", "true")])
 def test_spark_builders_preserve_transport(monkeypatch, config_type, scheme, expected):
+    requires_spark()
     import pyspark.sql
 
     from lakehouse.spark_session import build_spark_session as batch

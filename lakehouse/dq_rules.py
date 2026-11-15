@@ -97,6 +97,18 @@ RULES: tuple[Rule, ...] = (
         "account_id IS NOT NULL AND length(trim(account_id)) > 0",
     ),
     Rule(
+        "device_id_present",
+        "device_id must be a non-empty string",
+        lambda r: _non_empty(r.get("device_id")),
+        "device_id IS NOT NULL AND length(trim(device_id)) > 0",
+    ),
+    Rule(
+        "fraud_label_present",
+        "is_fraud_label must be a boolean",
+        lambda r: isinstance(r.get("is_fraud_label"), bool),
+        "is_fraud_label IS NOT NULL",
+    ),
+    Rule(
         "event_time_valid",
         "event_time must be present and parseable",
         lambda r: _valid_event_time(r.get("event_time")),
@@ -112,25 +124,33 @@ RULES: tuple[Rule, ...] = (
         "currency_allowed",
         "currency must be a known ISO 4217 code",
         lambda r: r.get("currency") in ALLOWED_CURRENCIES,
-        "currency IN ({})".format(", ".join(f"'{c}'" for c in sorted(ALLOWED_CURRENCIES))),
+        "currency IS NOT NULL AND currency IN ({})".format(
+            ", ".join(f"'{c}'" for c in sorted(ALLOWED_CURRENCIES))
+        ),
     ),
     Rule(
         "country_allowed",
         "country must be a known ISO 3166-1 alpha-2 code",
         lambda r: r.get("country") in ALLOWED_COUNTRIES,
-        "country IN ({})".format(", ".join(f"'{c}'" for c in sorted(ALLOWED_COUNTRIES))),
+        "country IS NOT NULL AND country IN ({})".format(
+            ", ".join(f"'{c}'" for c in sorted(ALLOWED_COUNTRIES))
+        ),
     ),
     Rule(
         "channel_allowed",
         "channel must be a known channel",
         lambda r: r.get("channel") in ALLOWED_CHANNELS,
-        "channel IN ({})".format(", ".join(f"'{c}'" for c in sorted(ALLOWED_CHANNELS))),
+        "channel IS NOT NULL AND channel IN ({})".format(
+            ", ".join(f"'{c}'" for c in sorted(ALLOWED_CHANNELS))
+        ),
     ),
     Rule(
         "merchant_category_allowed",
         "merchant_category must be a known category",
         lambda r: r.get("merchant_category") in ALLOWED_CATEGORIES,
-        "merchant_category IN ({})".format(", ".join(f"'{c}'" for c in sorted(ALLOWED_CATEGORIES))),
+        "merchant_category IS NOT NULL AND merchant_category IN ({})".format(
+            ", ".join(f"'{c}'" for c in sorted(ALLOWED_CATEGORIES))
+        ),
     ),
 )
 

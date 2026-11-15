@@ -37,7 +37,14 @@ def build_expectation_suite() -> dict[str, Any]:
     def add(expectation_type: str, **kwargs: Any) -> None:
         expectations.append({"expectation_type": expectation_type, "kwargs": kwargs})
 
-    for column in ("transaction_id", "account_id", "event_time", "amount", "currency"):
+    for column in (
+        "transaction_id",
+        "account_id",
+        "event_time",
+        "amount",
+        "amount_pln",
+        "currency",
+    ):
         add("expect_column_values_to_not_be_null", column=column)
 
     add("expect_column_values_to_be_unique", column="transaction_id")
@@ -74,6 +81,7 @@ def compute_metrics(silver: DataFrame, quarantine_count: int = 0) -> dict[str, A
         F.sum(F.col("transaction_id").isNull().cast("int")).alias("null_transaction_id"),
         F.sum(F.col("account_id").isNull().cast("int")).alias("null_account_id"),
         F.sum(F.col("amount").isNull().cast("int")).alias("null_amount"),
+        F.sum(F.col("amount_pln").isNull().cast("int")).alias("null_amount_pln"),
         F.min("amount").alias("amount_min"),
         F.max("amount").alias("amount_max"),
         F.round(F.avg("amount_pln"), 2).alias("avg_amount_pln"),
@@ -92,6 +100,7 @@ def compute_metrics(silver: DataFrame, quarantine_count: int = 0) -> dict[str, A
         "null_transaction_id": int(agg["null_transaction_id"] or 0),
         "null_account_id": int(agg["null_account_id"] or 0),
         "null_amount": int(agg["null_amount"] or 0),
+        "null_amount_pln": int(agg["null_amount_pln"] or 0),
         "amount_min": _f(agg["amount_min"]),
         "amount_max": _f(agg["amount_max"]),
         "avg_amount_pln": _f(agg["avg_amount_pln"]),
@@ -107,6 +116,7 @@ def evaluate_checks(metrics: dict[str, Any]) -> list[dict[str, Any]]:
         ("no_null_transaction_id", metrics["null_transaction_id"] == 0),
         ("no_null_account_id", metrics["null_account_id"] == 0),
         ("no_null_amount", metrics["null_amount"] == 0),
+        ("no_null_amount_pln", metrics.get("null_amount_pln") == 0),
         ("transaction_id_unique", metrics["duplicate_ids"] == 0),
         (
             "amount_within_bounds",
@@ -140,6 +150,7 @@ def render_markdown(metrics: dict[str, Any], checks: list[dict[str, Any]]) -> st
         f"| Null transaction_id | {metrics['null_transaction_id']} |",
         f"| Null account_id | {metrics['null_account_id']} |",
         f"| Null amount | {metrics['null_amount']} |",
+        f"| Null amount (PLN) | {metrics.get('null_amount_pln', 'not measured')} |",
         f"| Amount min / max | {metrics['amount_min']} / {metrics['amount_max']} |",
         f"| Avg amount (PLN) | {metrics['avg_amount_pln']} |",
         f"| Fraud count / rate | {metrics['fraud_count']} / {metrics['fraud_rate']} |",

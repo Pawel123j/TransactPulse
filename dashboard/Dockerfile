@@ -14,6 +14,13 @@ COPY analytics/ ./analytics/
 COPY dashboard/ ./dashboard/
 COPY streaming/ ./streaming/
 
+# Match the jobs image so a reports volume initialized by either container is
+# writable by the Spark report writer. The dashboard only reads those reports.
+RUN groupadd --gid 185 spark \
+    && useradd --uid 185 --gid spark --create-home spark \
+    && mkdir /reports && chown spark:spark /reports
+USER spark
+
 ENV PYTHONPATH=/app
 EXPOSE 8501
 
