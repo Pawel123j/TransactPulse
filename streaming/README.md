@@ -33,7 +33,7 @@ here (no dedup, no normalization) — that is the silver layer's job (Stage 5).
 | `STREAMING_TRIGGER`                  | `10 seconds`       | or `availableNow` / `once` (batch)     |
 | `STREAMING_MAX_OFFSETS_PER_TRIGGER`  | _(unset)_          | optional micro-batch rate limit        |
 | `S3_ENDPOINT`                        | `http://localhost:9000` | `http://minio:9000` in Docker     |
-| `S3_ACCESS_KEY` / `S3_SECRET_KEY`    | `minioadmin` / …   | MinIO credentials                      |
+| `S3_ACCESS_KEY` / `S3_SECRET_KEY`    | (z `infra/.env`)   | MinIO credentials                      |
 | `LAKEHOUSE_BUCKET`                   | `lakehouse`        |                                        |
 
 ## Run

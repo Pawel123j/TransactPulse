@@ -28,7 +28,7 @@ docker compose up -d --build
 ```bash
 pip install -r dashboard/requirements.txt
 export S3_ENDPOINT=http://localhost:9000
-export S3_ACCESS_KEY=minioadmin S3_SECRET_KEY=minioadmin123
+export S3_ACCESS_KEY="$MINIO_ROOT_USER" S3_SECRET_KEY="$MINIO_ROOT_PASSWORD"   # z infra/.env
 export LAKEHOUSE_BUCKET=lakehouse REPORTS_DIR=docs
 streamlit run dashboard/app.py
 ```

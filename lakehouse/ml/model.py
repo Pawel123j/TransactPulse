@@ -14,7 +14,10 @@ executes code. See SECURITY.md.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import math
+import os
 import pickle  # nosec B403
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -96,24 +99,51 @@ class HeuristicFraudModel:
         return 1.0 / (1.0 + math.exp(-z))
 
 
+# TP-02: artefakt modelu to pickle (estymator scikit-learn), a unpickling wykonuje kod.
+# Obok artefaktu zapisujemy podpis: HMAC-SHA256 z kluczem TRANSACTPULSE_MODEL_HMAC_KEY
+# (zalecane — chroni przed podmianą przez kogoś z zapisem do wolumenu), a bez klucza
+# SHA-256 (wykrywa uszkodzenie lub podmianę pliku bez aktualizacji sygnatury).
+# load_model NIE rozpakowuje artefaktu bez zgodnego podpisu — wraca None (fallback).
+MODEL_KEY_ENV = "TRANSACTPULSE_MODEL_HMAC_KEY"
+
+
+def _signature_path(path: Path) -> Path:
+    return path.with_name(path.name + ".sig")
+
+
+def _sign(data: bytes) -> str:
+    key = os.environ.get(MODEL_KEY_ENV, "")
+    if key:
+        return "hmac-sha256:" + hmac.new(key.encode(), data, hashlib.sha256).hexdigest()
+    return "sha256:" + hashlib.sha256(data).hexdigest()
+
+
 def save_model(model: FraudModel, path: str | Path) -> None:
-    """Pickle a model artifact to ``path`` (creating parent dirs)."""
+    """Pickle a model artifact to ``path`` and write its integrity signature."""
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    with p.open("wb") as fh:
-        pickle.dump(model, fh)
+    data = pickle.dumps(model)
+    p.write_bytes(data)
+    _signature_path(p).write_text(_sign(data) + "\n", encoding="ascii")
 
 
 def load_model(path: str | Path) -> FraudModel | None:
-    """Load a pickled model artifact, or ``None`` if missing/unloadable."""
+    """Load a signed model artifact, or ``None`` if missing, unsigned, tampered or unloadable."""
     p = Path(path)
-    if not p.exists():
+    sig = _signature_path(p)
+    if not p.exists() or not sig.exists():
         return None
     try:
-        with p.open("rb") as fh:
-            # The artifact is written by our own training job onto a local/volume
-            # path; a model from an untrusted source must never be loaded here.
-            return pickle.load(fh)  # noqa: S301  # nosec B301
+        data = p.read_bytes()
+        expected = sig.read_text(encoding="ascii").strip()
+        # Klucz skonfigurowany = akceptujemy wyłącznie podpis HMAC (sam SHA-256 może
+        # wyliczyć każdy, kto podmienia plik).
+        if os.environ.get(MODEL_KEY_ENV) and not expected.startswith("hmac-sha256:"):
+            return None
+        if not hmac.compare_digest(expected, _sign(data)):
+            return None
+        # Artefakt zweryfikowany powyżej; pochodzi z naszego joba treningowego.
+        return pickle.loads(data)  # noqa: S301  # nosec B301
     except Exception:  # noqa: BLE001 - any load failure -> caller falls back
         return None
 

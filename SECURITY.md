@@ -80,12 +80,13 @@ stack to an untrusted network.**
 
 ### Credentials
 
-- MinIO uses `minioadmin` / `minioadmin123`; Airflow uses `admin` / `admin`.
-  These are published in this repository, so they are public knowledge.
-- Every credential is read from an environment variable with a dev default
+- MinIO credentials are required: `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` from the git-ignored
+  `infra/.env` (no defaults since 2026-11 — compose refuses to start without them). Airflow:
+  user `admin` (role `admin`) with a password from the private `AIRFLOW_AUTH_PASSWORDS_FILE`.
+- Every credential is read from an environment variable (no credential defaults in code)
   (`S3_ACCESS_KEY`, `S3_SECRET_KEY`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`,
   …), so nothing has to be edited in code to change them. Copy
-  `infra/.env.example` to `infra/.env` (git-ignored) and override them.
+  `infra/.env.example` to `infra/.env` (git-ignored) and fill them in.
 - Production would instead pull credentials from a secret manager (Vault, AWS
   Secrets Manager, Kubernetes secrets) with rotation and a distinct identity per
   service, and would never bake them into an image or a compose file.

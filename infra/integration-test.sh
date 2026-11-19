@@ -28,7 +28,7 @@ sleep 120
 echo ">> [5/5] Querying the gold layer via DuckDB ..."
 "${COMPOSE[@]}" run --rm --no-deps \
   -e S3_ENDPOINT=http://minio:9000 \
-  -e S3_ACCESS_KEY=minioadmin -e S3_SECRET_KEY=minioadmin123 \
+  -e S3_ACCESS_KEY="${MINIO_ROOT_USER:?Set MINIO_ROOT_USER (infra/.env)}" -e S3_SECRET_KEY="${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD (infra/.env)}" \
   -e LAKEHOUSE_BUCKET=lakehouse \
   --entrypoint python3 dashboard \
   -c "from analytics.duckdb_query import connect, register_gold_views, DuckDBConfig; \

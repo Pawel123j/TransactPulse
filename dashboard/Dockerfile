@@ -15,6 +15,9 @@ COPY dashboard/ ./dashboard/
 COPY streaming/ ./streaming/
 
 ENV PYTHONPATH=/app
+# TP-04: proces Streamlit bez uprawnień roota.
+RUN useradd --system --uid 10001 --create-home --shell /usr/sbin/nologin dashboard
+USER 10001:10001
 EXPOSE 8501
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=5 --start-period=20s \
