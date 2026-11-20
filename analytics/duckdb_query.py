@@ -134,7 +134,14 @@ def register_gold_views(con: duckdb.DuckDBPyConnection, config: DuckDBConfig) ->
     View names come from :data:`GOLD_TABLES` and the bucket from configuration;
     both are validated before interpolation because ``CREATE VIEW`` cannot take
     bind parameters.
+
+    Safe to call again on a connection that has already been queried (to
+    refresh snapshots): DuckDB 2.x rejects new work while an earlier
+    ``execute()`` result is only partly fetched, so that result is drained first.
     """
+    complete = getattr(con, "complete", None)  # DuckDB >= 2.0
+    if complete is not None:
+        complete()
     bucket = _check_bucket(config.bucket)
     for table in GOLD_TABLES:
         name = _check_identifier(table, "gold table")

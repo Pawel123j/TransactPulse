@@ -12,7 +12,7 @@ from streaming.s3_config import ssl_enabled
 @pytest.mark.parametrize("config_type", [BronzeConfig, SilverConfig, GoldConfig])
 @pytest.mark.parametrize("scheme, expected", [("http", "false"), ("https", "true")])
 def test_spark_builders_preserve_transport(monkeypatch, config_type, scheme, expected):
-    import pyspark.sql
+    pyspark_sql = pytest.importorskip("pyspark.sql", reason="PySpark is not installed")
 
     from lakehouse.spark_session import build_spark_session as batch
     from streaming.spark_session import build_spark_session as stream
@@ -20,7 +20,7 @@ def test_spark_builders_preserve_transport(monkeypatch, config_type, scheme, exp
     builder = MagicMock()
     builder.appName.return_value = builder
     builder.config.return_value = builder
-    monkeypatch.setattr(pyspark.sql.SparkSession, "builder", builder)
+    monkeypatch.setattr(pyspark_sql.SparkSession, "builder", builder)
     build = stream if config_type is BronzeConfig else batch
     build(config_type(s3_endpoint=f"{scheme}://storage.example:9000"))
     builder.config.assert_any_call("spark.hadoop.fs.s3a.connection.ssl.enabled", expected)

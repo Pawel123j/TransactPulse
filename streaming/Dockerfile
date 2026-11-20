@@ -9,11 +9,15 @@ WORKDIR /app
 # Python deps: ML scoring (pandas_udf needs pandas + pyarrow; sklearn to load the
 # artifact) and Faker for the model-training job. Great Expectations is optional
 # (the silver report falls back to native metrics if it is absent).
+# apache/spark:3.5.9 ships Python 3.10. scikit-learn >=1.8 and pyarrow >=26 need
+# Python 3.11, so this image uses the newest advisory-free lines for 3.10
+# (scikit-learn 1.7.2, pyarrow 25). Train and score inside this same image so
+# the pickled model and the runtime always use the same scikit-learn version.
 COPY ingestion/requirements.txt /tmp/ingestion-requirements.txt
 RUN --mount=type=secret,id=proxy_ca \
     if [ -f /run/secrets/proxy_ca ]; then export PIP_CERT=/run/secrets/proxy_ca; fi; \
     pip install --no-cache-dir -r /tmp/ingestion-requirements.txt \
-      "scikit-learn>=1.9.1,<2" "pandas>=2.0,<3" "numpy>=1.24" "pyarrow>=26,<27"
+      "scikit-learn>=1.7.2,<2" "pandas>=2.0,<3" "numpy>=1.24" "pyarrow>=25,<27"
 
 # Application code: bronze streaming + lakehouse batch jobs (silver/gold) +
 # ingestion (used only by the model-training job, not by silver/gold at runtime).
