@@ -21,6 +21,10 @@ def initialize(directory: Path) -> Path:
         f"AIRFLOW_DB_PASSWORD={secrets.token_hex(32)}\n"
         f"AIRFLOW_JWT_SECRET={secrets.token_hex(48)}\n"
         f"AIRFLOW_AUTH_PASSWORDS_FILE='{passwords}'\n"
+        # TP-01: MinIO nie ma już domyślnych poświadczeń; ten plik jest jedynym
+        # --env-file przekazywanym do Compose, więc generujemy je tutaj.
+        "MINIO_ROOT_USER=tp-admin\n"
+        f"MINIO_ROOT_PASSWORD={secrets.token_urlsafe(24)}\n"
     )
     return env
 
