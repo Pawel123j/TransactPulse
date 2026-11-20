@@ -10,7 +10,7 @@ Base services for TransactPulse, defined in [`docker-compose.yml`](docker-compos
 | `minio`         | `minio/minio`                  | S3-compatible object store (lakehouse)   | http://localhost:9000 (API)  |
 | `createbuckets` | `minio/mc`                     | One-shot: create the `lakehouse` bucket  | —                            |
 
-MinIO console: http://localhost:9001 (default login `minioadmin` / `minioadmin123`).
+MinIO console: http://localhost:9001 (default login `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` z `infra/.env` (wymagane, brak wartości domyślnych)).
 
 ## Quickstart
 

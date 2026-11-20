@@ -60,8 +60,8 @@ class DuckDBConfig:
     """Connection settings for reading the lakehouse from DuckDB."""
 
     s3_endpoint: str = "http://localhost:9000"
-    s3_access_key: str = "minioadmin"
-    s3_secret_key: str = "minioadmin123"
+    s3_access_key: str = ""  # TP-01: tylko ze środowiska (S3_ACCESS_KEY)
+    s3_secret_key: str = ""  # TP-01: brak domyślnego hasła — tylko ze środowiska (S3_SECRET_KEY)
     bucket: str = "lakehouse"
     backend: str = "arrow"
 
@@ -134,7 +134,14 @@ def register_gold_views(con: duckdb.DuckDBPyConnection, config: DuckDBConfig) ->
     View names come from :data:`GOLD_TABLES` and the bucket from configuration;
     both are validated before interpolation because ``CREATE VIEW`` cannot take
     bind parameters.
+
+    Safe to call again on a connection that has already been queried (to
+    refresh snapshots): DuckDB 2.x rejects new work while an earlier
+    ``execute()`` result is only partly fetched, so that result is drained first.
     """
+    complete = getattr(con, "complete", None)  # DuckDB >= 2.0
+    if complete is not None:
+        complete()
     bucket = _check_bucket(config.bucket)
     for table in GOLD_TABLES:
         name = _check_identifier(table, "gold table")

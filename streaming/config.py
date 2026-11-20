@@ -41,8 +41,8 @@ class BronzeConfig:
     kafka_topic: str = "transactions.raw"
     starting_offsets: str = "earliest"
     s3_endpoint: str = "http://localhost:9000"
-    s3_access_key: str = "minioadmin"
-    s3_secret_key: str = "minioadmin123"
+    s3_access_key: str = ""  # TP-01: tylko ze środowiska (S3_ACCESS_KEY)
+    s3_secret_key: str = ""  # TP-01: brak domyślnego hasła — tylko ze środowiska (S3_SECRET_KEY)
     bucket: str = "lakehouse"
     trigger: str = "10 seconds"
     max_offsets_per_trigger: int | None = None

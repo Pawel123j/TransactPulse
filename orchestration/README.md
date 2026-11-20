@@ -13,6 +13,8 @@ docker compose --env-file "$TP_AIRFLOW_ENV" -f infra/docker-compose.yml up -d --
 docker compose --env-file "$TP_AIRFLOW_ENV" -f orchestration/docker-compose.yml up -d --build
 ```
 
+The generated `airflow.env` also holds `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` (random, TP-01): Compose files no longer fall back to default MinIO credentials, and `--env-file` replaces `infra/.env`. For an existing MinIO volume, put its current credentials into that file instead.
+
 The generator refuses an existing directory and creates mode-0600 settings. Obtain the local admin password from `passwords.json` privately; do not log or commit it. For existing volumes, retain existing DB credentials and back up metadata before an Airflow major upgrade. This is not an automatic migration of an existing deployment. The API/UI listens on loopback port 8088.
 
 For a proxy CA, pass `--secret id=proxy_ca,src=...` to the Airflow/jobs/dashboard Docker builds. TLS verification remains enabled. `S3_ENDPOINT=https://...` preserves HTTPS in tasks; configure trusted certificates in the Spark JVM and analytics runtime. Local Kafka remains PLAINTEXT; this Compose is not a production TLS deployment.

@@ -106,8 +106,8 @@ services:
       - "127.0.0.1:9000:9000"   # S3 API
       - "127.0.0.1:9001:9001"   # Web console
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in infra/.env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in infra/.env}
     volumes:
       - minio-data:/data
     healthcheck:
@@ -131,7 +131,7 @@ services:
     command:
       - |
         mc alias set local http://minio:9000 \
-          "${MINIO_ROOT_USER:-minioadmin}" "${MINIO_ROOT_PASSWORD:-minioadmin123}";
+          "${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in infra/.env}" "${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in infra/.env}";
         mc mb --ignore-existing local/${LAKEHOUSE_BUCKET:-lakehouse};
         echo "Buckets:";
         mc ls local
@@ -161,8 +161,8 @@ services:
       STREAMING_STARTING_OFFSETS: "earliest"
       STREAMING_TRIGGER: "10 seconds"
       S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
-      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in infra/.env}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in infra/.env}
       LAKEHOUSE_BUCKET: ${LAKEHOUSE_BUCKET:-lakehouse}
     volumes:
       # Persist resolved --packages jars across restarts (first run downloads them).

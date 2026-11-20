@@ -92,3 +92,33 @@ def test_load_or_default_falls_back(tmp_path) -> None:
 
 def test_load_missing_returns_none(tmp_path) -> None:
     assert load_model(tmp_path / "nope.pkl") is None
+
+
+# --- TP-02: integralność artefaktu przed unpicklingiem ------------------------
+
+
+def test_tampered_artifact_is_not_unpickled(tmp_path) -> None:
+    path = tmp_path / "m.pkl"
+    save_model(HeuristicFraudModel(threshold=0.7), path)
+    path.write_bytes(path.read_bytes() + b"tampered")
+    assert load_model(path) is None
+    assert isinstance(load_or_default(path), HeuristicFraudModel)
+
+
+def test_unsigned_artifact_is_rejected(tmp_path) -> None:
+    import pickle
+
+    path = tmp_path / "m.pkl"
+    path.write_bytes(pickle.dumps(HeuristicFraudModel()))
+    assert load_model(path) is None
+
+
+def test_hmac_key_requires_hmac_signature(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "m.pkl"
+    save_model(HeuristicFraudModel(threshold=0.6), path)  # podpis SHA-256 (bez klucza)
+    monkeypatch.setenv("TRANSACTPULSE_MODEL_HMAC_KEY", "k" * 32)
+    assert load_model(path) is None  # sam hash nie wystarcza, gdy klucz jest ustawiony
+    save_model(HeuristicFraudModel(threshold=0.6), path)
+    assert load_model(path).threshold == 0.6
+    monkeypatch.setenv("TRANSACTPULSE_MODEL_HMAC_KEY", "x" * 32)
+    assert load_model(path) is None  # inny klucz = odrzucenie

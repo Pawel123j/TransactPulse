@@ -312,7 +312,7 @@ transaction **generator**, Airflow, and the Streamlit **dashboard**.
 | 📊 Dashboard      | http://localhost:8501        | —                          |
 | 🛠️ Airflow        | http://localhost:8088        | `admin` / generated private password          |
 | 📨 Kafka UI       | http://localhost:8080        | —                          |
-| 🪣 MinIO console  | http://localhost:9001        | `minioadmin` / `minioadmin123` |
+| 🪣 MinIO console  | http://localhost:9001        | `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` z `infra/.env` (wymagane, brak wartości domyślnych) |
 
 Then trigger the batch pipeline (or wait for the `@daily` schedule):
 
@@ -380,7 +380,7 @@ pip install -r ingestion/requirements.txt
 **3 · Kafka UI** → <http://localhost:8080> — topic `transactions.raw` exists with
 3 partitions and a rising message count.
 
-**4 · MinIO console** → <http://localhost:9001> (`minioadmin` / `minioadmin123`)
+**4 · MinIO console** → <http://localhost:9001> (`MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` z `infra/.env` (wymagane, brak wartości domyślnych))
 — bucket `lakehouse`, prefix `bronze/transactions/` filling with Delta files plus
 a `_delta_log/`. If bronze stays empty, check `docker compose --env-file "$TP_AIRFLOW_ENV" logs spark-bronze`.
 
@@ -411,8 +411,8 @@ Query gold with SQL from the host:
 
 ```bash
 pip install -r requirements-dev.txt
-S3_ENDPOINT=http://localhost:9000 S3_ACCESS_KEY=minioadmin \
-S3_SECRET_KEY=minioadmin123 LAKEHOUSE_BUCKET=lakehouse \
+S3_ENDPOINT=http://localhost:9000 S3_ACCESS_KEY="$MINIO_ROOT_USER" \
+S3_SECRET_KEY="$MINIO_ROOT_PASSWORD" LAKEHOUSE_BUCKET=lakehouse \
 python -m analytics.duckdb_query
 ```
 
@@ -486,7 +486,7 @@ production-hardened — knowing the gap is part of the exercise. Full write-up i
 
 | Area | In this repo (dev) | What production needs |
 | ---- | ------------------ | --------------------- |
-| **Credentials** | `minioadmin` / `minioadmin123` defaults, overridable via env vars; `infra/.env` is git-ignored | No credentials in code, compose files or images — a secret manager (Vault, AWS Secrets Manager, Kubernetes secrets) with rotation and per-service identities |
+| **Credentials** | `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` z `infra/.env` (wymagane, brak wartości domyślnych) defaults, overridable via env vars; `infra/.env` is git-ignored | No credentials in code, compose files or images — a secret manager (Vault, AWS Secrets Manager, Kubernetes secrets) with rotation and per-service identities |
 | **Kafka** | `PLAINTEXT` listener, no auth, broker reachable only on the compose network | TLS in transit + SASL/mTLS authentication, per-topic ACLs, quotas |
 | **Object store** | MinIO root credentials, one wide-open `lakehouse` bucket | Scoped IAM policies per job (bronze writer ≠ gold reader), least-privilege prefixes, server-side encryption, versioning, retention/legal hold |
 | **Containers** | Vendor images, jobs run as the `spark` user, Airflow uses a configured UID and socket group | Non-root users everywhere, read-only root filesystems, dropped capabilities, `no-new-privileges`, pinned digests, resource limits |

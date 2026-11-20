@@ -31,8 +31,8 @@ class SilverConfig:
     """
 
     s3_endpoint: str = "http://localhost:9000"
-    s3_access_key: str = "minioadmin"
-    s3_secret_key: str = "minioadmin123"
+    s3_access_key: str = ""  # TP-01: tylko ze środowiska (S3_ACCESS_KEY)
+    s3_secret_key: str = ""  # TP-01: brak domyślnego hasła — tylko ze środowiska (S3_SECRET_KEY)
     bucket: str = "lakehouse"
     watermark_horizon_days: int = 2
     optimize_zorder: bool = True
@@ -83,8 +83,8 @@ class GoldConfig:
     """
 
     s3_endpoint: str = "http://localhost:9000"
-    s3_access_key: str = "minioadmin"
-    s3_secret_key: str = "minioadmin123"
+    s3_access_key: str = ""  # TP-01: tylko ze środowiska (S3_ACCESS_KEY)
+    s3_secret_key: str = ""  # TP-01: brak domyślnego hasła — tylko ze środowiska (S3_SECRET_KEY)
     bucket: str = "lakehouse"
     model_path: str = "models/fraud_model.pkl"
     fraud_threshold: float = 0.5

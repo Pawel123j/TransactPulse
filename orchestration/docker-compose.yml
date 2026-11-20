@@ -21,8 +21,8 @@ x-airflow-common: &airflow-common
     TP_JOBS_IMAGE: transactpulse/streaming:latest
     TP_NETWORK: transactpulse
     S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
-    MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-    MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+    MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in infra/.env}
+    MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in infra/.env}
     LAKEHOUSE_BUCKET: ${LAKEHOUSE_BUCKET:-lakehouse}
   volumes:
     - ./dags:/opt/airflow/dags:ro

@@ -43,8 +43,8 @@ PACKAGES = (
 # Shared environment for the jobs (reports + model live on shared volumes).
 JOB_ENV = {
     "S3_ENDPOINT": os.getenv("S3_ENDPOINT", "http://minio:9000"),
-    "S3_ACCESS_KEY": os.getenv("MINIO_ROOT_USER", "minioadmin"),
-    "S3_SECRET_KEY": os.getenv("MINIO_ROOT_PASSWORD", "minioadmin123"),
+    "S3_ACCESS_KEY": os.getenv("MINIO_ROOT_USER", ""),
+    "S3_SECRET_KEY": os.getenv("MINIO_ROOT_PASSWORD", ""),
     "LAKEHOUSE_BUCKET": os.getenv("LAKEHOUSE_BUCKET", "lakehouse"),
     "SILVER_DOCS_DIR": "/reports",
     "GOLD_DOCS_DIR": "/reports",
