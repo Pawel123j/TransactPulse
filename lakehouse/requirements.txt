@@ -6,4 +6,4 @@ pandas>=2.0,<3.0
 numpy>=1.24
 pyarrow>=23.0.1  # CVE-2023-47248 (IPC deserialization), CVE-2024-52338, PYSEC-2026-113
 scikit-learn>=1.9.1,<2
-boto3>=1.42,<2  # offline snapshot/restore CLI with conditional object writes
+boto3>=1.44.6,<2  # offline snapshot/restore CLI with conditional object writes
