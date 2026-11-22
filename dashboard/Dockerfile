@@ -19,12 +19,11 @@ COPY streaming/ ./streaming/
 RUN groupadd --gid 185 spark \
     && useradd --uid 185 --gid spark --create-home spark \
     && mkdir /reports && chown spark:spark /reports
-USER spark
 
 ENV PYTHONPATH=/app
-# TP-04: proces Streamlit bez uprawnień roota.
-RUN useradd --system --uid 10001 --create-home --shell /usr/sbin/nologin dashboard
-USER 10001:10001
+# TP-04: proces Streamlit bez uprawnień roota (ten sam nieuprzywilejowany
+# użytkownik co w obrazie jobs, żeby wolumen raportów był wspólny).
+USER 185:185
 EXPOSE 8501
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=5 --start-period=20s \
