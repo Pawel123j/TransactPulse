@@ -1,34 +1,46 @@
 # syntax=docker/dockerfile:1
-# Bronze streaming job image — Spark 3.5 + Delta + Kafka + S3A (hadoop-aws).
+# Spark 3.5 + Delta + Kafka + S3A on the supported Python 3.11 / Java 17 pair.
 # Build context is the repository root (see infra/docker-compose.yml).
-FROM apache/spark:3.5.9
+FROM eclipse-temurin:17-jre-jammy AS java
+FROM python:3.11-slim-bookworm
 
-USER root
 WORKDIR /app
+COPY --from=java /opt/java/openjdk /opt/java/openjdk
+ENV JAVA_HOME=/opt/java/openjdk
+ENV PATH="/opt/java/openjdk/bin:${PATH}"
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Python deps: ML scoring (pandas_udf needs pandas + pyarrow; sklearn to load the
 # artifact) and Faker for the model-training job. Great Expectations is optional
 # (the silver report falls back to native metrics if it is absent).
-# apache/spark:3.5.9 ships Python 3.10. scikit-learn >=1.8 and pyarrow >=26 need
-# Python 3.11, so this image uses the newest advisory-free lines for 3.10
-# (scikit-learn 1.7.2, pyarrow 25). Train and score inside this same image so
-# the pickled model and the runtime always use the same scikit-learn version.
 COPY ingestion/requirements.txt /tmp/ingestion-requirements.txt
+COPY streaming/requirements.txt /tmp/streaming-requirements.txt
 RUN --mount=type=secret,id=proxy_ca \
     if [ -f /run/secrets/proxy_ca ]; then export PIP_CERT=/run/secrets/proxy_ca; fi; \
     pip install --no-cache-dir -r /tmp/ingestion-requirements.txt \
-      "scikit-learn>=1.7.2,<2" "pandas>=2.0,<3" "numpy>=1.24" "pyarrow>=25,<27"
+      -r /tmp/streaming-requirements.txt \
+      "scikit-learn>=1.9.1,<2" "pandas>=2.0,<3" "numpy>=1.24" "pyarrow>=26,<27" \
+      "boto3>=1.42,<2"
+RUN ln -s /usr/local/lib/python3.11/site-packages/pyspark /opt/spark \
+    && groupadd --gid 185 spark \
+    && useradd --uid 185 --gid spark --create-home --shell /bin/bash spark
 
 # Application code: bronze streaming + lakehouse batch jobs (silver/gold) +
 # ingestion (used only by the model-training job, not by silver/gold at runtime).
 COPY ingestion/ ./ingestion/
 COPY streaming/ ./streaming/
 COPY lakehouse/ ./lakehouse/
+COPY infra/init_bucket.py ./infra/init_bucket.py
 
 # Writable Ivy cache for --packages resolution; owned by the spark user (uid 185).
-RUN mkdir -p /tmp/.ivy2 && chown -R spark:spark /app /tmp/.ivy2
+RUN mkdir -p /tmp/.ivy2 /reports /app/models \
+    && chown -R spark:spark /app /tmp/.ivy2 /reports
 
 ENV PYTHONPATH=/app
+ENV SPARK_HOME=/opt/spark
+ENV PYSPARK_PYTHON=/usr/local/bin/python3
+ENV PYSPARK_DRIVER_PYTHON=/usr/local/bin/python3
 
 USER spark
 

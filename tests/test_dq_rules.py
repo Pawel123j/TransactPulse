@@ -30,6 +30,8 @@ def _valid_record() -> dict:
         "country": "PL",
         "channel": "POS",
         "merchant_category": "grocery",
+        "device_id": "DEV-1",
+        "is_fraud_label": False,
     }
 
 
@@ -44,6 +46,10 @@ def test_valid_record_passes_all_rules() -> None:
         ("transaction_id", "", "transaction_id_present"),
         ("transaction_id", None, "transaction_id_present"),
         ("account_id", "  ", "account_id_present"),
+        ("device_id", "  ", "device_id_present"),
+        ("device_id", None, "device_id_present"),
+        ("is_fraud_label", None, "fraud_label_present"),
+        ("is_fraud_label", 0, "fraud_label_present"),
         ("event_time", "not-a-date", "event_time_valid"),
         ("event_time", None, "event_time_valid"),
         ("amount", 0, "amount_in_range"),

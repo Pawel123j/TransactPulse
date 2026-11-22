@@ -18,6 +18,7 @@ def _good_metrics() -> dict:
         "null_transaction_id": 0,
         "null_account_id": 0,
         "null_amount": 0,
+        "null_amount_pln": 0,
         "amount_min": 1.0,
         "amount_max": 9999.0,
         "avg_amount_pln": 120.5,
@@ -61,6 +62,16 @@ def test_checks_fail_on_out_of_bounds_amount() -> None:
     metrics["amount_max"] = 5_000_000.0
     checks = {c["check"]: c["passed"] for c in evaluate_checks(metrics)}
     assert checks["amount_within_bounds"] is False
+
+
+def test_checks_fail_on_missing_normalized_amount() -> None:
+    metrics = _good_metrics()
+    metrics["null_amount_pln"] = 1
+    checks = {c["check"]: c["passed"] for c in evaluate_checks(metrics)}
+    assert checks["no_null_amount_pln"] is False
+    del metrics["null_amount_pln"]
+    checks = {c["check"]: c["passed"] for c in evaluate_checks(metrics)}
+    assert checks["no_null_amount_pln"] is False
 
 
 def test_render_markdown_contains_status_and_metrics() -> None:

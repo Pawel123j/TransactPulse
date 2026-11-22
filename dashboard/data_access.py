@@ -26,12 +26,14 @@ class DashboardConfig:
 
     duckdb: DuckDBConfig
     reports_dir: str = "/reports"
+    demo_mode: bool = False
 
     @classmethod
     def from_env(cls) -> DashboardConfig:
         return cls(
             duckdb=DuckDBConfig.from_env(),
             reports_dir=os.getenv("REPORTS_DIR", "/reports"),
+            demo_mode=os.getenv("DEMO_MODE", "").strip().lower() == "synthetic",
         )
 
 
@@ -39,7 +41,12 @@ def open_gold(config: DashboardConfig):
     """Open a DuckDB connection with the gold tables registered as views."""
     con = connect(config.duckdb)
     try:
-        register_gold_views(con, config.duckdb)
+        if config.demo_mode:
+            from dashboard.demo_data import register_demo_tables
+
+            register_demo_tables(con)
+        else:
+            register_gold_views(con, config.duckdb)
     except Exception:
         con.close()
         raise
@@ -115,19 +122,3 @@ WHERE signal_count >= 3
 ORDER BY signal_count DESC, amount_pln DESC
 LIMIT 50
 """
-
-#: ISO 3166-1 alpha-2 -> alpha-3 for the choropleth map.
-ISO2_TO_ISO3: dict[str, str] = {
-    "PL": "POL",
-    "DE": "DEU",
-    "FR": "FRA",
-    "ES": "ESP",
-    "IT": "ITA",
-    "NL": "NLD",
-    "SK": "SVK",
-    "GB": "GBR",
-    "US": "USA",
-    "CZ": "CZE",
-    "UA": "UKR",
-    "CN": "CHN",
-}

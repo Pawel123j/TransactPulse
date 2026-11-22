@@ -7,8 +7,8 @@ Base services for TransactPulse, defined in [`docker-compose.yml`](docker-compos
 | `kafka`         | `apache/kafka:3.8.1`           | Event backbone (KRaft, no ZooKeeper)     | `localhost:9092` (bootstrap) |
 | `kafka-init`    | `apache/kafka:3.8.1`           | One-shot: create `transactions.raw`      | —                            |
 | `kafka-ui`      | `provectuslabs/kafka-ui:0.7.2` | Browse topics/messages                   | http://localhost:8080        |
-| `minio`         | `minio/minio`                  | S3-compatible object store (lakehouse)   | http://localhost:9000 (API)  |
-| `createbuckets` | `minio/mc`                     | One-shot: create the `lakehouse` bucket  | —                            |
+| `minio`         | locally built official MinIO source | S3-compatible object store (lakehouse) | http://localhost:9000 (API) |
+| `createbuckets` | `transactpulse/streaming`      | One-shot: create the `lakehouse` bucket  | —                            |
 
 MinIO console: http://localhost:9001 (default login `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` z `infra/.env` (wymagane, brak wartości domyślnych)).
 
@@ -19,7 +19,7 @@ MinIO console: http://localhost:9001 (default login `MINIO_ROOT_USER` / `MINIO_R
 cp infra/.env.example infra/.env
 
 # 2. bring up the stack
-docker compose -f infra/docker-compose.yml up -d
+docker compose -f infra/docker-compose.yml up -d --build
 
 # 3. watch services become healthy
 docker compose -f infra/docker-compose.yml ps
@@ -32,6 +32,17 @@ on demand and is idempotent:
 ```bash
 ./infra/create-topics.sh           # transactions.raw, 3 partitions
 ```
+
+The MinIO image builds official release `RELEASE.2025-10-15T17-29-55Z` with
+Go 1.27.4, replacing the unavailable historical image tag. The first build needs
+internet access and several GB of space. MinIO retains its upstream **AGPL-3.0**
+license; source is at https://github.com/minio/minio. The local image retains the
+previous image's root uid for existing data volumes. All published ports stay
+bound to loopback; this Compose setup is a local synthetic-data lab.
+
+`infra.init_bucket` uses Boto3 from the jobs image, preserves existing buckets,
+and propagates authentication/connection failures instead of reporting success.
+Use the same credentials when reopening an existing MinIO volume.
 
 ## Verify
 

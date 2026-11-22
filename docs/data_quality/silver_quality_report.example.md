@@ -1,8 +1,10 @@
 # Silver data-quality report
 
+Illustrative synthetic values; this is not a test execution log.
+
 - **Generated:** 2026-06-13T20:09:46+00:00
 - **Suite:** `transactpulse.silver.transactions`
-- **Overall:** ✅ PASS (5/5 checks passed)
+- **Overall:** ✅ PASS (6/6 checks passed)
 
 ## Metrics
 
@@ -14,6 +16,7 @@
 | Null transaction_id | 0 |
 | Null account_id | 0 |
 | Null amount | 0 |
+| Null amount (PLN) | 0 |
 | Amount min / max | 0.32 / 98234.11 |
 | Avg amount (PLN) | 187.44 |
 | Fraud count / rate | 86 / 0.00299 |
@@ -26,5 +29,6 @@
 | `no_null_transaction_id` | ✅ |
 | `no_null_account_id` | ✅ |
 | `no_null_amount` | ✅ |
+| `no_null_amount_pln` | ✅ |
 | `transaction_id_unique` | ✅ |
 | `amount_within_bounds` | ✅ |
