@@ -347,7 +347,7 @@ google-cloud-dataflow-client==0.14.0
 google-cloud-dataform==0.11.3
 google-cloud-dataplex==2.20.0
 google-cloud-dataproc-metastore==1.23.0
-google-cloud-dataproc==5.30.0
+google-cloud-dataproc==5.32.0
 google-cloud-dlp==3.39.0
 google-cloud-kms==3.16.0
 google-cloud-language==2.21.0
