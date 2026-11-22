@@ -63,11 +63,24 @@ jobs:
           python-version: "3.11"
       - name: Install dev + Spark dependencies
         run: pip install -r requirements-dev.txt -r requirements-spark.txt
+      # Fetch the Delta jars up front with retries instead of letting Ivy resolve
+      # them inside the test JVM, where a transient Maven Central miss turns
+      # into "unresolved dependency" (seen in CI). Versions match delta-spark
+      # 3.2.1 in streaming/requirements.txt.
+      - name: Download Delta jars
+        run: |
+          mkdir -p /tmp/delta-jars
+          base=https://repo1.maven.org/maven2/io/delta
+          for a in delta-spark_2.12 delta-storage; do
+            curl --fail --silent --show-error --location --retry 5 --retry-all-errors \
+              -o "/tmp/delta-jars/$a-3.2.1.jar" "$base/$a/3.2.1/$a-3.2.1.jar"
+          done
       # TP_REQUIRE_SPARK=1 turns a missing PySpark into a hard failure, so these
       # tests can never silently skip here (see tests/spark_support.py).
       - name: Run Spark tests
         env:
           TP_REQUIRE_SPARK: "1"
+          TP_DELTA_TEST_JARS: /tmp/delta-jars/delta-spark_2.12-3.2.1.jar,/tmp/delta-jars/delta-storage-3.2.1.jar
         run: |
           pytest -q -rs \
             tests/test_s3_transport.py \
