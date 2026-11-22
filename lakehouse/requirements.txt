@@ -1,7 +1,7 @@
 # Runtime/dev dependencies for the lakehouse (silver/gold) batch jobs.
 # Keep host runs aligned with the streaming image and Scala connector jars.
 -r ../streaming/requirements.txt
-great-expectations>=0.18,<1.0
+great-expectations>=1.23.1,<2.0
 pandas>=2.0,<3.0
 numpy>=1.24
 pyarrow>=23.0.1  # CVE-2023-47248 (IPC deserialization), CVE-2024-52338, PYSEC-2026-113
