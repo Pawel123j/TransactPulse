@@ -2,4 +2,4 @@
 # Docker and host use the same pair as the pinned Scala connector jars
 # (>=3.5.8 fixes CVE-2025-55039, CVE-2026-32773).
 pyspark==3.5.9
-delta-spark==3.2.1
+delta-spark==4.4.1
