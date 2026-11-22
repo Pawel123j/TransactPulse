@@ -72,7 +72,11 @@ def normalize(df: DataFrame, fx_rates: DataFrame) -> DataFrame:
 
 def _dq_errors_column():
     """Build an array column of the names of every failing rule (null-safe)."""
-    candidates = [F.when(~F.expr(rule.spark_expr), F.lit(rule.name)) for rule in RULES]
+    # SQL UNKNOWN must fail closed, including for future nullable predicates.
+    candidates = [
+        F.when(~F.coalesce(F.expr(rule.spark_expr), F.lit(False)), F.lit(rule.name))
+        for rule in RULES
+    ]
     return F.filter(F.array(*candidates), lambda x: x.isNotNull())
 
 
