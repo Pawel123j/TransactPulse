@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Spark 3.5 + Delta + Kafka + S3A on the supported Python 3.11 / Java 17 pair.
 # Build context is the repository root (see infra/docker-compose.yml).
-FROM eclipse-temurin:17-jre-jammy AS java
+FROM eclipse-temurin:22-jre-jammy AS java
 FROM python:3.11-slim-bookworm
 
 WORKDIR /app
