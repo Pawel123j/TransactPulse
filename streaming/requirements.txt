@@ -1,5 +1,5 @@
 # Runtime/dev dependencies for the streaming (bronze) job.
 # Docker and host use the same pair as the pinned Scala connector jars
 # (>=3.5.8 fixes CVE-2025-55039, CVE-2026-32773).
-pyspark==3.5.9
+pyspark==4.3.0
 delta-spark==3.2.1
