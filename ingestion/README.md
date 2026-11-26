@@ -21,6 +21,21 @@ Kafka topic `transactions.raw` (JSON on the wire — see
 | `device_id`         | string  | Device id (`DEV-…`)                                |
 | `is_fraud_label`    | boolean | Synthetic ground-truth fraud flag (~0.3 %)         |
 
+### Validating records
+
+`ingestion.validate(record)` returns a list of error strings (`[]` = valid),
+e.g. `["missing fields: transaction_id"]` for a record without an id. The
+generator and sinks do **not** call it, so validate hand-built or external
+records yourself before sending them:
+
+```python
+from ingestion import validate
+
+errors = validate(record)
+if errors:
+    raise ValueError(errors)
+```
+
 ## Realistic patterns
 
 - **Log-normal amounts** with high-value fraud outliers.

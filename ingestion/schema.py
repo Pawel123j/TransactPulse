@@ -1,7 +1,14 @@
 """Transaction record schema, allowed value sets and a dependency-free validator.
 
-The wire format is JSON (see ADR 0003), but records are validated against this
-schema *before* they are produced, so malformed events never reach Kafka.
+The wire format is JSON (see ADR 0003). :func:`validate` (re-exported as
+``ingestion.validate``) checks a record dict against this schema and returns a
+list of errors. The generator/producer path does **not** call it: generated
+records are well-formed by construction, and :class:`~ingestion.producer.StdoutSink`
+/ :class:`~ingestion.producer.KafkaTransactionProducer` send whatever they are
+given. Callers that hand-build or receive records should validate them first.
+Downstream, the silver layer re-checks records with ``lakehouse.dq_rules`` and
+quarantines failures (note: it also rejects whitespace-only identifiers, which
+:func:`validate` accepts).
 """
 
 from __future__ import annotations
