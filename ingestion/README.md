@@ -70,6 +70,6 @@ CLI flags override environment variables, which override defaults.
 ## Tests
 
 ```bash
-pip install -r requirements-dev.txt
+pip install -r requirements-dev.txt -r dashboard/requirements.txt  # as in CI
 pytest tests/ -q
 ```

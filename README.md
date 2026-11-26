@@ -463,11 +463,13 @@ individual slices of the stack.
 ## Tests & quality gates
 
 ```bash
-# fast suite (no JVM needed)
-pip install -r requirements-dev.txt
+# fast suite (no JVM needed) — same installs as the CI `test` job; without the
+# dashboard requirements, tests/test_dashboard_runtime.py fails to import streamlit
+pip install -r requirements-dev.txt -r dashboard/requirements.txt
 pytest -q
 
-# Spark transformation and transport tests — needs a JDK (Java 17 in CI)
+# Spark transformation and transport tests — needs JDK 17 (as in CI); on JDK 21 the
+# Arrow-based pandas_udf tests fail with "sun.misc.Unsafe ... not available"
 pip install -r requirements-spark.txt
 TP_REQUIRE_SPARK=1 pytest -q tests/test_bronze_transform.py \
     tests/test_silver_transform.py tests/test_gold_aggregates.py tests/test_delta_pipeline.py
