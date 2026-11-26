@@ -98,3 +98,63 @@ def test_s3_keys_cannot_escape_backup_directory(tmp_path):
     backup(source, "source", directory, writers_paused=True)
     assert sorted(p.name for p in directory.iterdir()) == ["00000000.bin", "manifest.json"]
     assert not (tmp_path / "outside").exists()
+
+
+def test_restored_gold_snapshot_keeps_row_counts_and_sums(tmp_path):
+    """Delta-level check: restored gold reads the same latest snapshot, not every file."""
+    from datetime import date
+    from pathlib import Path
+
+    deltalake = pytest.importorskip("deltalake")
+    pa = pytest.importorskip("pyarrow")
+
+    source_dir = tmp_path / "source"
+
+    def daily(rows):
+        cols = ("event_date", "country", "tx_count", "total_volume_pln")
+        return pa.Table.from_pylist([dict(zip(cols, row, strict=True)) for row in rows])
+
+    # v0: 3 stale rows; v1 overwrites with the current 2 rows (v0 files stay on disk).
+    daily_path = source_dir / "gold" / "daily_volume_by_country"
+    deltalake.write_deltalake(daily_path, daily([(date(2026, 6, 12), "PL", 9, 999.0)] * 3))
+    deltalake.write_deltalake(
+        daily_path,
+        daily([(date(2026, 6, 13), "PL", 2, 530.0), (date(2026, 6, 13), "DE", 2, 93.5)]),
+        mode="overwrite",
+    )
+    deltalake.write_deltalake(
+        source_dir / "gold" / "scored_transactions", pa.table({"amount_pln": [100.0, 430.0]})
+    )
+
+    objects = {
+        path.relative_to(source_dir).as_posix(): path.read_bytes()
+        for path in sorted(source_dir.rglob("*"))
+        if path.is_file()
+    }
+    objects["checkpoints/bronze/offsets/1"] = b"offset"  # never restored
+    target = MemoryS3()
+    backup(MemoryS3(objects), "source", tmp_path / "snapshot", writers_paused=True)
+    assert restore(target, "target", tmp_path / "snapshot") == len(objects) - 1
+
+    restored_dir = tmp_path / "restored"
+    for key, data in target.objects.items():
+        path = restored_dir / Path(key)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+
+    def totals(root, table, column):
+        snapshot = deltalake.DeltaTable(root / "gold" / table).to_pyarrow_table()
+        return snapshot.num_rows, round(sum(snapshot.column(column).to_pylist()), 2)
+
+    # Expected by hand: v1 only -> 2 rows, 530.0 + 93.5; scoring 100.0 + 430.0.
+    expected = {
+        ("daily_volume_by_country", "total_volume_pln"): (2, 623.5),
+        ("scored_transactions", "amount_pln"): (2, 530.0),
+    }
+    for (table, column), value in expected.items():
+        assert totals(source_dir, table, column) == value
+        assert totals(restored_dir, table, column) == value
+    # Every parquet file (incl. removed v0 ones) is restored, so only the Delta
+    # snapshot gives the right answer; a raw file scan would count 5 rows.
+    restored_files = list((restored_dir / "gold" / "daily_volume_by_country").glob("*.parquet"))
+    assert len(restored_files) == 2
