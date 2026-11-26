@@ -67,7 +67,10 @@ def account_velocity(silver: DataFrame) -> DataFrame:
 
 def fraud_signals(silver: DataFrame, high_amount_pln: float = 5000.0) -> DataFrame:
     """Per-transaction rule-based fraud signals (independent of the ML score)."""
-    hour = F.hour(F.col("event_time"))
+    # UTC hour of the event instant, matching lakehouse.ml.features. ``F.hour``
+    # would use spark.sql.session.timeZone (the JVM default when unset), so the
+    # night signal would depend on the host; epoch arithmetic is TZ/DST-free.
+    hour = F.expr("CAST(floor(pmod(unix_seconds(event_time), 86400) / 3600) AS INT)")
     is_high_risk = F.col("merchant_category").isin(list(HIGH_RISK_CATEGORIES))
     return silver.select(
         "transaction_id",

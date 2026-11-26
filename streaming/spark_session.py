@@ -42,6 +42,8 @@ def build_spark_session(config: BronzeConfig) -> SparkSession:
             "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider",
         )
         # Smaller shuffle for a single-node demo.
+        # Pin the session time zone so date/hour functions never follow the host.
+        .config("spark.sql.session.timeZone", "UTC")
         .config("spark.sql.shuffle.partitions", "4")
     )
     spark = builder.getOrCreate()

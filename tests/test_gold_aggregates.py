@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -85,3 +85,46 @@ def test_fraud_signals(spark):
     # t2 is night + high amount + foreign + high-risk category + card-not-present.
     assert out["t2"]["signal_count"] == 5
     assert out["t1"]["signal_count"] == 0
+
+
+@pytest.mark.parametrize("session_tz", ["UTC", "Europe/Warsaw", "America/New_York"])
+@pytest.mark.parametrize(
+    "event_time,expected_night",
+    [
+        # 23:30 in Warsaw (CEST) but 21:30 UTC — not night by the UTC hour.
+        (datetime(2026, 6, 13, 21, 30, tzinfo=UTC), False),
+        # 18:30 in New York (EDT) but 22:30 UTC — night by the UTC hour.
+        (datetime(2026, 6, 13, 22, 30, tzinfo=UTC), True),
+    ],
+    ids=["21:30Z", "22:30Z"],
+)
+def test_signal_night_uses_utc_hour(spark, session_tz, event_time, expected_night):
+    """signal_night follows the UTC hour, whatever the Spark session time zone."""
+    from lakehouse.ml.features import build_features
+
+    previous = spark.conf.get("spark.sql.session.timeZone")
+    spark.conf.set("spark.sql.session.timeZone", session_tz)
+    try:
+        silver = spark.createDataFrame(
+            [
+                (
+                    "n1",
+                    event_time,
+                    event_time.date(),
+                    "A1",
+                    10.0,
+                    "PL",
+                    "POS",
+                    "grocery",
+                    False,
+                    "D1",
+                )
+            ],
+            _silver(spark).schema,
+        )
+        row = fraud_signals(silver).collect()[0]
+    finally:
+        spark.conf.set("spark.sql.session.timeZone", previous)
+    assert row["signal_night"] is expected_night
+    # Same answer as the Python feature path used by the model.
+    assert build_features({"event_time": event_time})["is_night"] == float(expected_night)

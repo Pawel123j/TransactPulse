@@ -39,5 +39,6 @@ def local_spark_session(app_name: str = "transactpulse-tests"):
         .appName(app_name)
         .config("spark.sql.shuffle.partitions", "1")
         .config("spark.ui.enabled", "false")
+        .config("spark.sql.session.timeZone", "UTC")
         .getOrCreate()
     )

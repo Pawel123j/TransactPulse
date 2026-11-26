@@ -21,7 +21,7 @@ here (no dedup, no normalization) — that is the silver layer's job (Stage 5).
 | `_kafka_timestamp` | timestamp   | Kafka record timestamp                           |
 | `data`             | struct      | Parsed payload (structural only, no cleansing)   |
 | `ingestion_time`   | timestamp   | When Spark ingested the record                   |
-| `ingestion_date`   | date        | **Partition column** (derived from ingestion)    |
+| `ingestion_date`   | date        | **Partition column** (UTC day of ingestion)      |
 
 ## Configuration (env)
 

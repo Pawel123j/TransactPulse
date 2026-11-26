@@ -6,8 +6,8 @@ local SparkSession.
 
 from __future__ import annotations
 
-from pyspark.sql import DataFrame
-from pyspark.sql.functions import col, current_timestamp, from_json, to_date
+from pyspark.sql import Column, DataFrame
+from pyspark.sql.functions import col, current_timestamp, expr, from_json
 from pyspark.sql.types import StructType
 
 #: Columns the bronze table is expected to expose.
@@ -24,7 +24,11 @@ BRONZE_COLUMNS: tuple[str, ...] = (
 )
 
 
-def build_bronze_frame(raw: DataFrame, payload_schema: StructType) -> DataFrame:
+def build_bronze_frame(
+    raw: DataFrame,
+    payload_schema: StructType,
+    ingestion_time: Column | None = None,
+) -> DataFrame:
     """Shape a raw Kafka source DataFrame into the bronze schema.
 
     Adds ingestion metadata and a parsed ``data`` struct, **without** applying any
@@ -35,10 +39,12 @@ def build_bronze_frame(raw: DataFrame, payload_schema: StructType) -> DataFrame:
             (``key``, ``value``, ``topic``, ``partition``, ``offset``,
             ``timestamp``).
         payload_schema: Schema used to parse the JSON ``value`` into ``data``.
+        ingestion_time: Column for ``ingestion_time``; defaults to
+            ``current_timestamp()``. Injectable so tests can pin the instant.
 
     Returns:
         A DataFrame with :data:`BRONZE_COLUMNS`, partition-ready on
-        ``ingestion_date``.
+        ``ingestion_date`` (the UTC calendar day of ``ingestion_time``).
     """
     return (
         raw.select(
@@ -50,6 +56,15 @@ def build_bronze_frame(raw: DataFrame, payload_schema: StructType) -> DataFrame:
             col("timestamp").alias("_kafka_timestamp"),
         )
         .withColumn("data", from_json(col("value"), payload_schema))
-        .withColumn("ingestion_time", current_timestamp())
-        .withColumn("ingestion_date", to_date(col("ingestion_time")))
+        .withColumn(
+            "ingestion_time",
+            current_timestamp() if ingestion_time is None else ingestion_time,
+        )
+        # UTC calendar day of ingestion. ``to_date`` would use
+        # spark.sql.session.timeZone (the JVM default when unset), so partition
+        # boundaries would depend on the host; epoch-day arithmetic is TZ-free.
+        .withColumn(
+            "ingestion_date",
+            expr("date_from_unix_date(CAST(floor(unix_seconds(ingestion_time) / 86400) AS INT))"),
+        )
     )

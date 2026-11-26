@@ -32,6 +32,8 @@ def build_spark_session(config: SilverConfig | GoldConfig) -> SparkSession:
             "spark.hadoop.fs.s3a.aws.credentials.provider",
             "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider",
         )
+        # Pin the session time zone so date/hour functions never follow the host.
+        .config("spark.sql.session.timeZone", "UTC")
         .config("spark.sql.shuffle.partitions", "4")
         .config("spark.databricks.delta.optimize.repartition.enabled", "true")
         .getOrCreate()
