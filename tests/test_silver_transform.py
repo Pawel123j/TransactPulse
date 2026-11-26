@@ -158,6 +158,52 @@ def test_to_silver_end_to_end(spark):
     assert quarantine.count() == 1
 
 
+def test_mixed_currency_sums_are_in_pln_through_queries_sql(spark):
+    """Two currencies in one group: every gold/analytics sum is in PLN, not raw units."""
+    from pathlib import Path
+
+    from analytics.duckdb_query import run_statements
+    from lakehouse.gold_aggregates import (
+        account_velocity,
+        daily_volume_by_country,
+        merchant_category_kpi,
+    )
+
+    duckdb = pytest.importorskip("duckdb")
+    # Country and currency are validated independently, so PL+EUR is a valid row.
+    records = [
+        {"data": _data(transaction_id="p1", country="PL", currency="PLN", amount=100.0)},
+        {"data": _data(transaction_id="p2", country="PL", currency="EUR", amount=100.0)},
+        {"data": _data(transaction_id="p3", country="DE", currency="GBP", amount=10.0)},
+        {"data": _data(transaction_id="p4", country="DE", currency="EUR", amount=10.0)},
+        # Next day: query 1 must SUM several gold rows per country.
+        {
+            "data": _data(
+                transaction_id="p5",
+                timestamp="2026-06-14T12:00:00+00:00",
+                country="PL",
+                currency="PLN",
+                amount=20.0,
+            )
+        },
+    ]
+    valid, quarantine = to_silver(_bronze(spark, records), fx_rates_dataframe(spark))
+    assert quarantine.count() == 0
+    # Expected, by hand from FX_RATES_TO_PLN: PL 100*1.00 + 100*4.30 (+ 20*1.00 next
+    # day) = 550.00; DE 10*5.05 + 10*4.30 = 93.50. Raw sums would be 220.00 / 20.00.
+    con = duckdb.connect()
+    con.register("daily_volume_by_country", daily_volume_by_country(valid).toPandas())
+    sql = Path("analytics/queries.sql").read_text(encoding="utf-8")
+    query_1 = run_statements(con, sql.split(";")[0])[0]  # top countries by volume (PLN)
+    assert query_1 == [("PL", 3, 550.0, 0), ("DE", 2, 93.5, 0)]
+    (kpi,) = merchant_category_kpi(valid).collect()
+    assert kpi["total_volume_pln"] == 643.5  # all five rows, one category
+    velocity = {
+        str(r["event_date"]): r["total_amount_pln"] for r in account_velocity(valid).collect()
+    }
+    assert velocity == {"2026-06-13": 623.5, "2026-06-14": 20.0}
+
+
 def test_every_required_null_is_quarantined_before_gold(spark):
     from ingestion.schema import FIELDS
     from lakehouse.dq_rules import evaluate
@@ -212,3 +258,59 @@ def test_quality_metrics_detect_missing_pln_amount(spark):
     assert metrics["null_amount_pln"] == 1
     checks = {check["check"]: check["passed"] for check in evaluate_checks(metrics)}
     assert checks["no_null_amount_pln"] is False
+
+
+@pytest.mark.parametrize("session_tz", ["UTC", "Europe/Warsaw", "America/New_York"])
+@pytest.mark.parametrize(
+    "late_ts,early_ts",
+    [
+        ("2026-06-13T23:30:00+00:00", "2026-06-14T00:30:00+00:00"),  # typical
+        ("2026-06-13T23:59:59+00:00", "2026-06-14T00:00:00+00:00"),  # boundary
+        ("2026-06-13T19:30:00-04:00", "2026-06-14T02:30:00+02:00"),  # offsets
+    ],
+    ids=["typical", "boundary", "non-utc-offsets"],
+)
+def test_daily_totals_split_at_utc_midnight(spark, session_tz, late_ts, early_ts):
+    """event_date is the UTC calendar day, whatever the Spark session time zone."""
+    from datetime import date
+
+    from lakehouse.gold_aggregates import daily_volume_by_country
+
+    previous = spark.conf.get("spark.sql.session.timeZone")
+    spark.conf.set("spark.sql.session.timeZone", session_tz)
+    try:
+        bronze = _bronze(
+            spark,
+            [
+                {
+                    "data": _data(
+                        transaction_id="a",
+                        timestamp=late_ts,
+                        amount=100.0,
+                        currency="PLN",
+                        country="PL",
+                    )
+                },
+                {
+                    "data": _data(
+                        transaction_id="b",
+                        timestamp=early_ts,
+                        amount=50.0,
+                        currency="PLN",
+                        country="PL",
+                    )
+                },
+            ],
+        )
+        valid, quarantine = to_silver(bronze, fx_rates_dataframe(spark))
+        assert quarantine.count() == 0
+        totals = {
+            (r["event_date"], r["country"]): (r["tx_count"], r["total_volume_pln"])
+            for r in daily_volume_by_country(valid).collect()
+        }
+    finally:
+        spark.conf.set("spark.sql.session.timeZone", previous)
+    assert totals == {
+        (date(2026, 6, 13), "PL"): (1, 100.0),
+        (date(2026, 6, 14), "PL"): (1, 50.0),
+    }

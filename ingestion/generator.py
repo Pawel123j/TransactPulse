@@ -8,7 +8,12 @@ Patterns injected (see ADR 0003 and the Stage-2 README section):
     * **Late-arriving events** — a fraction of records carry a backdated timestamp
       to exercise watermarking / late-data handling downstream.
 
-The generator is deterministic for a fixed ``seed`` (idempotency).
+The generator is deterministic for a fixed ``seed`` *and* an unchanged config
+(idempotency): re-emitting a batch reproduces the same ``transaction_id`` sequence
+and field values, except ``timestamp``, which follows the ``now`` passed in (the
+emitter passes the wall clock). Any config change that alters RNG consumption
+(e.g. ``fraud_rate``, pool sizes) changes the ids. Without a seed, ids are fresh
+on every run.
 """
 
 from __future__ import annotations

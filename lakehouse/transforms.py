@@ -55,13 +55,19 @@ def cast_and_extract(bronze: DataFrame) -> DataFrame:
 
 
 def normalize(df: DataFrame, fx_rates: DataFrame) -> DataFrame:
-    """Add ``event_date``, join FX rates and compute ``amount_pln``.
+    """Add ``event_date`` (UTC calendar day), join FX rates and compute ``amount_pln``.
 
     A left join is used so rows with an unknown currency are preserved (with a
     null rate) and later quarantined by the currency rule, rather than dropped.
     """
     return (
-        df.withColumn("event_date", F.to_date(F.col("event_time")))
+        # UTC calendar day of the event instant. ``to_date`` would use
+        # spark.sql.session.timeZone (the JVM default when unset), so daily gold
+        # totals would depend on the host; epoch-day arithmetic is TZ/DST-free.
+        df.withColumn(
+            "event_date",
+            F.expr("date_from_unix_date(CAST(floor(unix_seconds(event_time) / 86400) AS INT))"),
+        )
         .join(F.broadcast(fx_rates), on="currency", how="left")
         .withColumn(
             "amount_pln",

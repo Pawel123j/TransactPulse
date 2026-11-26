@@ -88,3 +88,32 @@ def test_synthetic_gold_aggregates_reconcile_across_country_and_category():
     con.close()
 
     assert country == category
+
+
+def test_empty_gold_shows_zero_kpis_and_infos_not_an_outage(monkeypatch, tmp_path):
+    """Empty (but readable) gold tables are zero activity, not an outage."""
+
+    def empty_gold(config):
+        con = _connection()
+        for table in (
+            "daily_volume_by_country",
+            "merchant_category_kpi",
+            "scored_transactions",
+            "fraud_signals",
+        ):
+            con.execute(f"DELETE FROM {table}")  # nosec B608 - fixed table names
+        return con
+
+    monkeypatch.setattr(data_access, "open_gold", empty_gold)
+    monkeypatch.setenv("REPORTS_DIR", str(tmp_path))
+    app = AppTest.from_file(str(APP)).run(timeout=15)
+    assert not app.exception
+    assert not app.error
+    assert [m.value for m in app.metric] == ["0", "0", "0", "0.000%"]
+    infos = {info.value for info in app.info}
+    assert {
+        "No volume data yet.",
+        "No trend data yet.",
+        "No scored transactions yet.",
+        "No fraud signals yet.",
+    } <= infos

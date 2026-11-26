@@ -21,6 +21,21 @@ Kafka topic `transactions.raw` (JSON on the wire — see
 | `device_id`         | string  | Device id (`DEV-…`)                                |
 | `is_fraud_label`    | boolean | Synthetic ground-truth fraud flag (~0.3 %)         |
 
+### Validating records
+
+`ingestion.validate(record)` returns a list of error strings (`[]` = valid),
+e.g. `["missing fields: transaction_id"]` for a record without an id. The
+generator and sinks do **not** call it, so validate hand-built or external
+records yourself before sending them:
+
+```python
+from ingestion import validate
+
+errors = validate(record)
+if errors:
+    raise ValueError(errors)
+```
+
 ## Realistic patterns
 
 - **Log-normal amounts** with high-value fraud outliers.
@@ -51,6 +66,15 @@ python -m ingestion --rate 30 --burst --seed 42
 python -m ingestion --rate 5 --duration 3 --dry-run
 ```
 
+### Replaying a batch (same ids)
+
+With the same `--seed` **and** the same configuration, a re-run emits the same
+`transaction_id` sequence with identical field values; only `timestamp` differs
+(it is the emission wall clock). Silver MERGEs on `transaction_id`, so such a
+replay **updates** existing rows (the newest `ingestion_time` wins) instead of
+adding duplicates. Without `--seed`, or after changing a generation parameter such
+as `--fraud-rate`, a re-run produces **new** ids and therefore new rows.
+
 ### Configuration
 
 CLI flags override environment variables, which override defaults.
@@ -70,6 +94,6 @@ CLI flags override environment variables, which override defaults.
 ## Tests
 
 ```bash
-pip install -r requirements-dev.txt
+pip install -r requirements-dev.txt -r dashboard/requirements.txt  # as in CI
 pytest tests/ -q
 ```
