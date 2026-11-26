@@ -2,8 +2,11 @@
 
 Reads the gold Delta tables through DuckDB (reusing ``analytics.duckdb_query``)
 and the per-run JSON reports (data quality, drift) from the shared reports volume.
-Kept import-light and defensive so the dashboard degrades gracefully when a table
-or report does not exist yet (fresh stack).
+Kept import-light. An *empty* gold table is real zero activity: KPIs read 0 and
+row-level panels come back empty (the UI shows an informational message). A gold
+table that cannot be opened, whether missing (fresh stack) or because storage is
+unreachable, raises instead, and the app shows one "data unavailable" error rather
+than zeros. Missing DQ/drift JSON reports return ``None`` (informational message).
 """
 
 from __future__ import annotations

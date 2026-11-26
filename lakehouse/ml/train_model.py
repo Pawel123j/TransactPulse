@@ -5,7 +5,8 @@ transactions with the Stage-2 generator, engineers features, fits a
 scikit-learn classifier, captures a reference distribution for drift, and writes:
 
 * ``models/fraud_model.pkl``       — the pickled :class:`SklearnFraudModel`;
-* ``models/fraud_model.meta.json`` — committed metadata (features, AUC, quantiles).
+* ``models/fraud_model.meta.json`` — committed metadata (features, ROC-AUC, PR-AUC
+  vs the heuristic baseline on the held-out split, quantiles).
 
 Run::
 
@@ -25,7 +26,7 @@ from ingestion.config import GeneratorConfig
 from ingestion.generator import TransactionGenerator
 from lakehouse.fx_rates import FX_RATES_TO_PLN
 from lakehouse.ml.features import FEATURE_NAMES, features_frame
-from lakehouse.ml.model import SklearnFraudModel, save_model
+from lakehouse.ml.model import HeuristicFraudModel, SklearnFraudModel, save_model
 
 DEFAULT_MODEL_PATH = "models/fraud_model.pkl"
 _REFERENCE_SAMPLE_SIZE = 5000
@@ -59,7 +60,7 @@ def _deciles(series: pd.Series) -> list[float]:
 def train(samples: int, seed: int, model_path: str) -> dict:
     """Train, evaluate and persist the model. Returns the metadata dict."""
     from sklearn.ensemble import GradientBoostingClassifier
-    from sklearn.metrics import roc_auc_score
+    from sklearn.metrics import average_precision_score, roc_auc_score
     from sklearn.model_selection import train_test_split
 
     df = synthetic_silver_frame(samples, seed)
@@ -74,6 +75,11 @@ def train(samples: int, seed: int, model_path: str) -> dict:
 
     test_scores = estimator.predict_proba(x_test)[:, 1]
     auc = float(roc_auc_score(y_test, test_scores))
+    # Fraud is rare (~2 %), so ROC-AUC flatters. PR-AUC (average precision) on the
+    # same held-out split, next to the no-skill level (= positive rate) and the
+    # heuristic fallback used when no artifact exists, shows what the model adds.
+    pr_auc = float(average_precision_score(y_test, test_scores))
+    heuristic_pr_auc = float(average_precision_score(y_test, HeuristicFraudModel().score(x_test)))
 
     # Reference distribution for drift (a capped sample of training scores/amounts).
     train_scores = estimator.predict_proba(x_train)[:, 1]
@@ -98,6 +104,10 @@ def train(samples: int, seed: int, model_path: str) -> dict:
         "n_samples": int(samples),
         "n_fraud": int(labels.sum()),
         "roc_auc": round(auc, 4),
+        "pr_auc": round(pr_auc, 4),
+        "heuristic_pr_auc": round(heuristic_pr_auc, 4),
+        "holdout_positive_rate": round(float(y_test.mean()), 4),
+        "holdout_n": int(len(y_test)),
         "reference_quantiles": {
             "fraud_score": _deciles(pd.Series(train_scores)),
             "amount_pln": _deciles(df["amount_pln"]),

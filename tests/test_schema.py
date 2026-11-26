@@ -48,6 +48,39 @@ def test_missing_field_is_rejected(field: str) -> None:
     assert any("missing fields" in e and field in e for e in errors)
 
 
+def test_record_without_transaction_id_reports_only_that_field() -> None:
+    record = _valid_record()
+    del record["transaction_id"]
+    # Exactly one error: the missing id must not hide or cascade into others.
+    assert validate(record) == ["missing fields: transaction_id"]
+    assert not is_valid(record)
+
+
+@pytest.mark.parametrize("field", ["transaction_id", "account_id", "device_id"])
+@pytest.mark.parametrize("bad", ["", None, 123], ids=["empty", "none", "int"])
+def test_identifier_must_be_non_empty_string(field: str, bad: object) -> None:
+    record = _valid_record()
+    record[field] = bad
+    assert validate(record) == [f"{field} must be a non-empty string"]
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {},
+        {"amount": 0.01},
+        {"amount": 1},
+        {"transaction_id": "x", "account_id": "a", "device_id": "d"},
+        {"is_fraud_label": True},
+    ],
+    ids=["typical", "smallest-cent", "int-amount", "one-char-ids", "fraud-true"],
+)
+def test_minimal_valid_transaction_passes(overrides: dict) -> None:
+    record = {**_valid_record(), **overrides}
+    assert validate(record) == []
+    assert is_valid(record)
+
+
 def test_unexpected_field_is_rejected() -> None:
     record = _valid_record()
     record["surprise"] = 1

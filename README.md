@@ -233,7 +233,10 @@ vectorized Spark `pandas_udf`.
 missing, `load_or_default()` falls back to `HeuristicFraudModel` — a
 deterministic, dependency-free logistic scorer over the same engineered features.
 Gold therefore always produces a `fraud_score`, and the stack is usable on a
-fresh clone; the scores are just weaker than a trained model's.
+fresh clone. On the synthetic data the heuristic is a strong baseline: the trained
+model's PR-AUC on held-out data is close to the heuristic's (both well above the
+fraud rate), with a small ROC-AUC edge for the trained model. The trainer records
+both numbers so the comparison is visible on every run.
 
 Train the real model (a scikit-learn `GradientBoostingClassifier`) either way:
 
@@ -247,7 +250,8 @@ python -m lakehouse.ml.train_model --samples 60000 --model-path models/fraud_mod
 ```
 
 The trainer also writes `models/fraud_model.meta.json` (feature list, threshold,
-ROC-AUC, reference quantiles). Those reference quantiles are what
+ROC-AUC, and on the 25 % held-out split `pr_auc`, `heuristic_pr_auc` and
+`holdout_positive_rate` (the PR-AUC of a no-skill predictor), plus reference quantiles). Those reference quantiles are what
 [`lakehouse/drift.py`](lakehouse/drift.py) compares live scores against to report
 **PSI / KS drift**; an example report lives in
 [`docs/drift/drift_report.example.md`](docs/drift/drift_report.example.md).
@@ -463,11 +467,13 @@ individual slices of the stack.
 ## Tests & quality gates
 
 ```bash
-# fast suite (no JVM needed)
-pip install -r requirements-dev.txt
+# fast suite (no JVM needed) — same installs as the CI `test` job; without the
+# dashboard requirements, tests/test_dashboard_runtime.py fails to import streamlit
+pip install -r requirements-dev.txt -r dashboard/requirements.txt
 pytest -q
 
-# Spark transformation and transport tests — needs a JDK (Java 17 in CI)
+# Spark transformation and transport tests — needs JDK 17 (as in CI); on JDK 21 the
+# Arrow-based pandas_udf tests fail with "sun.misc.Unsafe ... not available"
 pip install -r requirements-spark.txt
 TP_REQUIRE_SPARK=1 pytest -q tests/test_bronze_transform.py \
     tests/test_silver_transform.py tests/test_gold_aggregates.py tests/test_delta_pipeline.py
@@ -510,7 +516,7 @@ production-hardened — knowing the gap is part of the exercise. Full write-up i
 | **Airflow → Docker** | The scheduler mounts the host Docker socket so `DockerOperator` can launch Spark jobs — effectively host root | A Kubernetes executor (or a remote Docker API with mTLS) instead of the socket |
 | **Exposure** | Dashboard (8501), Airflow (8088, generated private password), Kafka UI (8080) and MinIO console (9001) published on localhost with dev logins | Nothing public without authentication: SSO/OIDC in front of Airflow and Streamlit, private networking, an ingress/WAF, audit logging |
 | **Data** | 100 % synthetic, no PII | Real transaction data is regulated (PCI-DSS/GDPR): encryption at rest and in transit, tokenized PAN/account identifiers, field-level access control, retention limits, lineage and audit trails |
-| **Model artifact** | `pickle` read from a local path | Unpickling executes code: signed artifacts from a model registry, integrity verification before load |
+| **Model artifact** | `pickle` with a `.sig` checked before load; plain SHA-256 unless `TRANSACTPULSE_MODEL_HMAC_KEY` is set (not set by compose/DAGs), so it guards against corruption, not tampering | Unpickling executes code: signed artifacts from a model registry (HMAC/asymmetric), read-only model mounts for scoring |
 | **Supply chain** | bandit, gitleaks and `pip-audit` all block CI; Dependabot opens weekly update PRs | A second scanner (Trivy — see SECURITY.md), SBOM generation, pinned and signed base images, a blocking image-CVE gate |
 
 > ⚠️ **Do not expose this stack to an untrusted network.** The default
