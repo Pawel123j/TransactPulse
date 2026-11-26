@@ -158,6 +158,52 @@ def test_to_silver_end_to_end(spark):
     assert quarantine.count() == 1
 
 
+def test_mixed_currency_sums_are_in_pln_through_queries_sql(spark):
+    """Two currencies in one group: every gold/analytics sum is in PLN, not raw units."""
+    from pathlib import Path
+
+    from analytics.duckdb_query import run_statements
+    from lakehouse.gold_aggregates import (
+        account_velocity,
+        daily_volume_by_country,
+        merchant_category_kpi,
+    )
+
+    duckdb = pytest.importorskip("duckdb")
+    # Country and currency are validated independently, so PL+EUR is a valid row.
+    records = [
+        {"data": _data(transaction_id="p1", country="PL", currency="PLN", amount=100.0)},
+        {"data": _data(transaction_id="p2", country="PL", currency="EUR", amount=100.0)},
+        {"data": _data(transaction_id="p3", country="DE", currency="GBP", amount=10.0)},
+        {"data": _data(transaction_id="p4", country="DE", currency="EUR", amount=10.0)},
+        # Next day: query 1 must SUM several gold rows per country.
+        {
+            "data": _data(
+                transaction_id="p5",
+                timestamp="2026-06-14T12:00:00+00:00",
+                country="PL",
+                currency="PLN",
+                amount=20.0,
+            )
+        },
+    ]
+    valid, quarantine = to_silver(_bronze(spark, records), fx_rates_dataframe(spark))
+    assert quarantine.count() == 0
+    # Expected, by hand from FX_RATES_TO_PLN: PL 100*1.00 + 100*4.30 (+ 20*1.00 next
+    # day) = 550.00; DE 10*5.05 + 10*4.30 = 93.50. Raw sums would be 220.00 / 20.00.
+    con = duckdb.connect()
+    con.register("daily_volume_by_country", daily_volume_by_country(valid).toPandas())
+    sql = Path("analytics/queries.sql").read_text(encoding="utf-8")
+    query_1 = run_statements(con, sql.split(";")[0])[0]  # top countries by volume (PLN)
+    assert query_1 == [("PL", 3, 550.0, 0), ("DE", 2, 93.5, 0)]
+    (kpi,) = merchant_category_kpi(valid).collect()
+    assert kpi["total_volume_pln"] == 643.5  # all five rows, one category
+    velocity = {
+        str(r["event_date"]): r["total_amount_pln"] for r in account_velocity(valid).collect()
+    }
+    assert velocity == {"2026-06-13": 623.5, "2026-06-14": 20.0}
+
+
 def test_every_required_null_is_quarantined_before_gold(spark):
     from ingestion.schema import FIELDS
     from lakehouse.dq_rules import evaluate
