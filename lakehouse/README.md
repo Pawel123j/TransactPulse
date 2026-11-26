@@ -32,6 +32,9 @@ deduplicated **silver** table, with a **quarantine** table for bad records and a
 fx_rate_to_pln, amount_pln, merchant_category, country, channel, device_id,
 is_fraud_label, ingestion_time, _offset`
 
+`event_date` is the **UTC** calendar day of `event_time`, independent of the Spark
+session/JVM time zone, so daily gold totals split at UTC midnight on every host.
+
 ## Data-quality rules
 
 Defined once in [`dq_rules.py`](dq_rules.py) as `Rule` objects carrying **both** a

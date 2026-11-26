@@ -212,3 +212,59 @@ def test_quality_metrics_detect_missing_pln_amount(spark):
     assert metrics["null_amount_pln"] == 1
     checks = {check["check"]: check["passed"] for check in evaluate_checks(metrics)}
     assert checks["no_null_amount_pln"] is False
+
+
+@pytest.mark.parametrize("session_tz", ["UTC", "Europe/Warsaw", "America/New_York"])
+@pytest.mark.parametrize(
+    "late_ts,early_ts",
+    [
+        ("2026-06-13T23:30:00+00:00", "2026-06-14T00:30:00+00:00"),  # typical
+        ("2026-06-13T23:59:59+00:00", "2026-06-14T00:00:00+00:00"),  # boundary
+        ("2026-06-13T19:30:00-04:00", "2026-06-14T02:30:00+02:00"),  # offsets
+    ],
+    ids=["typical", "boundary", "non-utc-offsets"],
+)
+def test_daily_totals_split_at_utc_midnight(spark, session_tz, late_ts, early_ts):
+    """event_date is the UTC calendar day, whatever the Spark session time zone."""
+    from datetime import date
+
+    from lakehouse.gold_aggregates import daily_volume_by_country
+
+    previous = spark.conf.get("spark.sql.session.timeZone")
+    spark.conf.set("spark.sql.session.timeZone", session_tz)
+    try:
+        bronze = _bronze(
+            spark,
+            [
+                {
+                    "data": _data(
+                        transaction_id="a",
+                        timestamp=late_ts,
+                        amount=100.0,
+                        currency="PLN",
+                        country="PL",
+                    )
+                },
+                {
+                    "data": _data(
+                        transaction_id="b",
+                        timestamp=early_ts,
+                        amount=50.0,
+                        currency="PLN",
+                        country="PL",
+                    )
+                },
+            ],
+        )
+        valid, quarantine = to_silver(bronze, fx_rates_dataframe(spark))
+        assert quarantine.count() == 0
+        totals = {
+            (r["event_date"], r["country"]): (r["tx_count"], r["total_volume_pln"])
+            for r in daily_volume_by_country(valid).collect()
+        }
+    finally:
+        spark.conf.set("spark.sql.session.timeZone", previous)
+    assert totals == {
+        (date(2026, 6, 13), "PL"): (1, 100.0),
+        (date(2026, 6, 14), "PL"): (1, 50.0),
+    }
