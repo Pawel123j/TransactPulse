@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
+from faker import Faker
 
 from ingestion.config import GeneratorConfig
 from ingestion.generator import HOURLY_WEIGHTS, TransactionGenerator, hourly_weight
@@ -37,6 +38,40 @@ def test_determinism_with_seed() -> None:
     a = [tx.to_dict() for tx in TransactionGenerator(cfg).stream(50, now=now)]
     b = [tx.to_dict() for tx in TransactionGenerator(cfg).stream(50, now=now)]
     assert a == b
+
+
+def _pools(gen: TransactionGenerator) -> tuple[list[str], list[str]]:
+    return [a.account_id for a in gen._accounts], list(gen._devices)
+
+
+def test_seeded_pools_independent_of_shared_faker_state() -> None:
+    cfg = GeneratorConfig(seed=99, num_accounts=50, num_devices=60)
+    first = _pools(TransactionGenerator(cfg))
+    Faker.seed(12345)  # perturb the process-wide Faker random state
+    Faker().uuid4()
+    assert _pools(TransactionGenerator(cfg)) == first
+
+
+def test_unseeded_generator_after_seeded_one_is_random() -> None:
+    small = {"num_accounts": 50, "num_devices": 60}
+    unseeded_pools = []
+    for _ in range(2):
+        TransactionGenerator(GeneratorConfig(seed=1234, **small))
+        unseeded_pools.append(_pools(TransactionGenerator(GeneratorConfig(seed=None, **small))))
+    a, b = unseeded_pools
+    assert a[0] != b[0]
+    assert a[1] != b[1]
+
+
+def test_seeded_generator_does_not_reseed_other_faker_instances() -> None:
+    Faker.seed(2024)
+    baseline_faker = Faker()
+    expected = [baseline_faker.uuid4() for _ in range(5)]
+
+    Faker.seed(2024)
+    other = Faker()
+    TransactionGenerator(GeneratorConfig(seed=1234, num_accounts=50, num_devices=60))
+    assert [other.uuid4() for _ in range(5)] == expected
 
 
 def test_transaction_ids_are_unique(generator: TransactionGenerator) -> None:

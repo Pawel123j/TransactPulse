@@ -116,7 +116,10 @@ class TransactionGenerator:
         self._rng = random.Random(config.seed)  # nosec B311
         self._faker = Faker()
         if config.seed is not None:
-            Faker.seed(config.seed)
+            # Per-instance seed: ``Faker.seed()`` would reseed the random instance
+            # shared by every Faker object in the process, making later
+            # ``seed=None`` generators deterministic and disturbing other users.
+            self._faker.seed_instance(config.seed)
 
         self._devices: list[str] = self._build_devices(config.num_devices)
         self._accounts: list[_AccountProfile] = self._build_accounts(config.num_accounts)
