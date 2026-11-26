@@ -233,7 +233,10 @@ vectorized Spark `pandas_udf`.
 missing, `load_or_default()` falls back to `HeuristicFraudModel` — a
 deterministic, dependency-free logistic scorer over the same engineered features.
 Gold therefore always produces a `fraud_score`, and the stack is usable on a
-fresh clone; the scores are just weaker than a trained model's.
+fresh clone. On the synthetic data the heuristic is a strong baseline: the trained
+model's PR-AUC on held-out data is close to the heuristic's (both well above the
+fraud rate), with a small ROC-AUC edge for the trained model. The trainer records
+both numbers so the comparison is visible on every run.
 
 Train the real model (a scikit-learn `GradientBoostingClassifier`) either way:
 
@@ -247,7 +250,8 @@ python -m lakehouse.ml.train_model --samples 60000 --model-path models/fraud_mod
 ```
 
 The trainer also writes `models/fraud_model.meta.json` (feature list, threshold,
-ROC-AUC, reference quantiles). Those reference quantiles are what
+ROC-AUC, and on the 25 % held-out split `pr_auc`, `heuristic_pr_auc` and
+`holdout_positive_rate` (the PR-AUC of a no-skill predictor), plus reference quantiles). Those reference quantiles are what
 [`lakehouse/drift.py`](lakehouse/drift.py) compares live scores against to report
 **PSI / KS drift**; an example report lives in
 [`docs/drift/drift_report.example.md`](docs/drift/drift_report.example.md).
