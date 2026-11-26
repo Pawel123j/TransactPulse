@@ -135,6 +135,18 @@ stack to an untrusted network.**
   (via `GOLD_MODEL_PATH`) at an artifact this project produced — the
   `train_fraud_model` job writing to the `tp-models` volume, or a local
   `models/fraud_model.pkl`.
+- `save_model` writes a `.pkl.sig` next to the artifact and `load_model` checks it
+  before unpickling; a missing, mismatched or (with a key set) non-HMAC signature
+  means the artifact is skipped and scoring falls back to `HeuristicFraudModel`.
+  **Without `TRANSACTPULSE_MODEL_HMAC_KEY` the signature is a plain SHA-256**: it
+  detects corruption, not tampering — anyone who can write the artifact can also
+  write a matching `.sig`, and the payload then runs during `pickle.loads`. Neither
+  the compose files nor the Airflow DAGs set the key, and `medallion_pipeline`
+  mounts the `tp-models` volume read-write for its scoring tasks, so out of the box
+  the trust boundary is "anyone with write access to `tp-models`". To make the
+  signature authenticate the trainer, set the same secret
+  `TRANSACTPULSE_MODEL_HMAC_KEY` for the training job and the scoring jobs (never
+  for anything else), and mount `tp-models` read-only where it is only read.
 - `.pkl` files are git-ignored: model artifacts are build outputs, not source.
 - Production would fetch signed artifacts from a model registry and verify
   integrity before loading, or use a non-executable serialization format (ONNX).
