@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from ingestion.config import GeneratorConfig
 from ingestion.generator import HOURLY_WEIGHTS, TransactionGenerator, hourly_weight
 from ingestion.schema import COUNTRY_CURRENCY, validate
+from lakehouse.fx_rates import FX_RATES_TO_PLN
+from lakehouse.ml.features import build_features
 
 
 @pytest.fixture
@@ -37,6 +39,52 @@ def test_determinism_with_seed() -> None:
     a = [tx.to_dict() for tx in TransactionGenerator(cfg).stream(50, now=now)]
     b = [tx.to_dict() for tx in TransactionGenerator(cfg).stream(50, now=now)]
     assert a == b
+
+
+def _features(cfg: GeneratorConfig, now: datetime, n: int = 100) -> list[dict[str, float]]:
+    """Generator -> silver-like projection -> model features (as the smoke test does)."""
+    return [
+        build_features(
+            {
+                "event_time": tx.timestamp,
+                "amount_pln": round(tx.amount * FX_RATES_TO_PLN[tx.currency], 2),
+                "channel": tx.channel,
+                "merchant_category": tx.merchant_category,
+                "country": tx.country,
+            }
+        )
+        for tx in TransactionGenerator(cfg).stream(n, now=now)
+    ]
+
+
+@pytest.mark.parametrize(
+    "now,hour,is_night",
+    [
+        (datetime(2026, 6, 13, 21, 59, 59, tzinfo=UTC), 21.0, 0.0),
+        (datetime(2026, 6, 13, 22, 0, 0, tzinfo=UTC), 22.0, 1.0),
+    ],
+    ids=["21:59:59", "22:00:00"],
+)
+def test_features_identical_for_fixed_seed_and_clock(
+    now: datetime, hour: float, is_night: float
+) -> None:
+    cfg = GeneratorConfig(seed=42, num_accounts=50, num_devices=60, late_event_rate=0.0)
+    first, second = _features(cfg, now), _features(cfg, now)
+    assert first == second
+    # Time features follow the injected clock, not the wall clock.
+    assert {(f["hour"], f["is_night"]) for f in first} == {(hour, is_night)}
+
+
+def test_clock_shift_only_moves_timestamps() -> None:
+    cfg = GeneratorConfig(seed=42, num_accounts=50, num_devices=60, late_event_rate=0.2)
+    now = datetime(2026, 6, 13, 21, 59, 59, tzinfo=UTC)
+    delta = timedelta(seconds=1)
+    a = [tx.to_dict() for tx in TransactionGenerator(cfg).stream(200, now=now)]
+    b = [tx.to_dict() for tx in TransactionGenerator(cfg).stream(200, now=now + delta)]
+    ts = datetime.fromisoformat
+    assert {ts(y["timestamp"]) - ts(x["timestamp"]) for x, y in zip(a, b, strict=True)} == {delta}
+    strip = [{k: v for k, v in r.items() if k != "timestamp"} for r in a]
+    assert strip == [{k: v for k, v in r.items() if k != "timestamp"} for r in b]
 
 
 def test_transaction_ids_are_unique(generator: TransactionGenerator) -> None:
