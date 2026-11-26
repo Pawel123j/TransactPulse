@@ -516,7 +516,7 @@ production-hardened — knowing the gap is part of the exercise. Full write-up i
 | **Airflow → Docker** | The scheduler mounts the host Docker socket so `DockerOperator` can launch Spark jobs — effectively host root | A Kubernetes executor (or a remote Docker API with mTLS) instead of the socket |
 | **Exposure** | Dashboard (8501), Airflow (8088, generated private password), Kafka UI (8080) and MinIO console (9001) published on localhost with dev logins | Nothing public without authentication: SSO/OIDC in front of Airflow and Streamlit, private networking, an ingress/WAF, audit logging |
 | **Data** | 100 % synthetic, no PII | Real transaction data is regulated (PCI-DSS/GDPR): encryption at rest and in transit, tokenized PAN/account identifiers, field-level access control, retention limits, lineage and audit trails |
-| **Model artifact** | `pickle` read from a local path | Unpickling executes code: signed artifacts from a model registry, integrity verification before load |
+| **Model artifact** | `pickle` with a `.sig` checked before load; plain SHA-256 unless `TRANSACTPULSE_MODEL_HMAC_KEY` is set (not set by compose/DAGs), so it guards against corruption, not tampering | Unpickling executes code: signed artifacts from a model registry (HMAC/asymmetric), read-only model mounts for scoring |
 | **Supply chain** | bandit, gitleaks and `pip-audit` all block CI; Dependabot opens weekly update PRs | A second scanner (Trivy — see SECURITY.md), SBOM generation, pinned and signed base images, a blocking image-CVE gate |
 
 > ⚠️ **Do not expose this stack to an untrusted network.** The default
