@@ -51,6 +51,15 @@ python -m ingestion --rate 30 --burst --seed 42
 python -m ingestion --rate 5 --duration 3 --dry-run
 ```
 
+### Replaying a batch (same ids)
+
+With the same `--seed` **and** the same configuration, a re-run emits the same
+`transaction_id` sequence with identical field values; only `timestamp` differs
+(it is the emission wall clock). Silver MERGEs on `transaction_id`, so such a
+replay **updates** existing rows (the newest `ingestion_time` wins) instead of
+adding duplicates. Without `--seed`, or after changing a generation parameter such
+as `--fraud-rate`, a re-run produces **new** ids and therefore new rows.
+
 ### Configuration
 
 CLI flags override environment variables, which override defaults.
