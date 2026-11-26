@@ -11,9 +11,17 @@ reports, presenting:
 - **Data quality** — silver rows, quarantined count, checks passed.
 - **Drift** — PSI/KS of `fraud_score` / `amount_pln` vs the training reference.
 
-The dashboard degrades gracefully: panels show an informational message when their
-table/report does not exist yet. The synthetic demo uses local charts and does not
-fetch map geometry or other assets from a CDN.
+Empty vs unavailable data:
+
+- **Empty gold tables** (pipeline ran, no rows yet): KPIs show `0`, and the
+  volume, trend and fraud panels show an informational "No … yet" message.
+- **Gold table missing or storage unreachable**: the page shows a single
+  "Pipeline data is unavailable" error instead of zeros, so an outage is never
+  mistaken for zero activity. Run the pipeline through gold, then refresh.
+- **Missing data-quality / drift report**: that panel shows an informational message.
+
+The synthetic demo uses local charts and does not fetch map geometry or other
+assets from a CDN.
 
 ## Run
 
