@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from ingestion.config import GeneratorConfig
 from ingestion.emitter import run_emitter
 from ingestion.generator import TransactionGenerator
@@ -38,6 +40,16 @@ def test_json_serializer_roundtrip() -> None:
 def test_json_serializer_is_compact() -> None:
     payload = JsonSerializer().serialize(_sample().to_dict())
     assert b", " not in payload  # compact separators, no spaces
+
+
+@pytest.mark.parametrize(
+    "amount", [float("nan"), float("inf"), float("-inf")], ids=["nan", "inf", "-inf"]
+)
+def test_json_serializer_rejects_non_finite_numbers(amount: float) -> None:
+    record = _sample().to_dict()
+    record["amount"] = amount
+    with pytest.raises(ValueError):
+        JsonSerializer().serialize(record)
 
 
 def test_json_serializer_satisfies_protocol() -> None:

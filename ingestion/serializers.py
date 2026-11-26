@@ -30,11 +30,17 @@ class JsonSerializer:
         self._sort_keys = sort_keys
 
     def serialize(self, record: dict[str, Any]) -> bytes:
-        """Encode ``record`` as compact UTF-8 JSON bytes."""
+        """Encode ``record`` as compact UTF-8 JSON bytes.
+
+        Raises:
+            ValueError: If ``record`` contains NaN or +/-Infinity, which have no
+                representation in standard JSON (RFC 8259).
+        """
         return json.dumps(
             record,
             separators=(",", ":"),
             ensure_ascii=False,
+            allow_nan=False,
             sort_keys=self._sort_keys,
         ).encode("utf-8")
 

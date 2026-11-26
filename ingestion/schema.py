@@ -6,6 +6,7 @@ schema *before* they are produced, so malformed events never reach Kafka.
 
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -177,12 +178,9 @@ def validate(record: dict[str, Any]) -> list[str]:
             errors.append("timestamp must be an ISO-8601 string")
 
     if "amount" in record:
-        amount = record["amount"]
-        # bool is a subclass of int -> reject explicitly.
-        if isinstance(amount, bool) or not isinstance(amount, (int, float)):
-            errors.append("amount must be a number")
-        elif amount <= 0:
-            errors.append(f"amount must be > 0, got {amount}")
+        amount_error = _amount_error(record["amount"])
+        if amount_error:
+            errors.append(amount_error)
 
     _check_enum(record, "currency", CURRENCIES, errors)
     _check_enum(record, "merchant_category", MERCHANT_CATEGORIES, errors)
@@ -203,6 +201,20 @@ def is_valid(record: dict[str, Any]) -> bool:
 def utc_now_iso() -> str:
     """Return the current UTC time as an ISO-8601 string (seconds precision)."""
     return datetime.now(tz=UTC).replace(microsecond=0).isoformat()
+
+
+def _amount_error(amount: Any) -> str | None:
+    """Return an error message for an invalid ``amount``, or None if it is valid."""
+    # bool is a subclass of int -> reject explicitly.
+    if isinstance(amount, bool) or not isinstance(amount, (int, float)):
+        return "amount must be a number"
+    # NaN compares False to everything (so ``<= 0`` lets it through) and inf
+    # passes ``> 0``; neither is a real amount, and neither is valid JSON.
+    if not math.isfinite(amount):
+        return f"amount must be a finite number, got {amount}"
+    if amount <= 0:
+        return f"amount must be > 0, got {amount}"
+    return None
 
 
 def _non_empty_str(value: Any) -> bool:

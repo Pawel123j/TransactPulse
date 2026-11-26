@@ -61,6 +61,19 @@ def test_non_positive_amount_rejected(amount: float) -> None:
     assert any("amount must be > 0" in e for e in validate(record))
 
 
+@pytest.mark.parametrize(
+    "amount",
+    [float("nan"), float("inf"), float("-inf")],
+    ids=["nan", "inf", "-inf"],
+)
+def test_non_finite_amount_rejected(amount: float) -> None:
+    record = _valid_record()
+    record["amount"] = amount
+    errors = validate(record)
+    assert any("amount must be a finite number" in e for e in errors)
+    assert not is_valid(record)
+
+
 def test_amount_must_be_number_not_bool() -> None:
     record = _valid_record()
     record["amount"] = True
